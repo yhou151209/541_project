@@ -1,0 +1,77 @@
+1.Unavailable
+  Scenario:
+	Ian becomes unavailable for Sunday evening.
+  Expected behavior:
+	Ian is removed from that shift
+	Replacement staff are assigned
+	Explanation mentions:
+		Unavailability
+		Replacement reasoning
+
+ 
+2.Direct Swap
+  Scenario:
+	Brian (Monday evening) swaps with Ian (Tuesday evening)
+  Expected behavior:
+	Their assignments are exchanged
+	Additional adjustments may occur to maintain feasibility
+	Explanation confirms:
+		Swap validity
+		Constraint satisfaction
+
+3.Avoid Back-to-Back
+  Scenario:
+	Avoid assigning Eric to both morning and evening on the same day
+  Expected behavior:
+	Preference is added to the system
+	Schedule may or may not change depending on feasibility
+	Explanation reports:
+		Before vs after count of back-to-back assignments
+
+
+4.Avoid Shift Type
+  Scenario:
+	Try not to assign Alice to morning shifts
+  Expected behavior:
+	Preference is stored
+	Morning assignments for Alice are reduced if possible
+	Explanation reflects:
+		Change (or no change) in assignment count
+
+
+5.Avoid Specific Day
+  Scenario:
+	Avoid assigning Hannah on Sunday
+  Expected behavior:
+	System attempts to reduce Sunday assignments
+	If not feasible, schedule remains unchanged
+	Explanation clarifies trade-offs
+
+
+6.Avoid Specific Day + Shift
+  Scenario:
+	Avoid assigning Brian to Saturday evening
+  Expected behavior:
+	System tries to reassign that slot
+	Busy shift logic may conflict with preference
+	Explanation highlights:
+		Preference vs operational constraints
+
+
+7.Busy Shift Behavior
+  Scenario:
+	Triggered implicitly (e.g., after unavailable or swap)
+  Expected behavior:
+	Full-time staff are preferred for:
+		Evening shifts
+		Weekend shifts
+	Explanation includes:
+		“Busy shifts prefer full-time staff when possible”
+
+
+8.Preference Accumulation
+  Scenario:
+	Apply multiple preferences sequentially
+  Expected behavior:
+	Preferences are stored and accumulated
+	Future schedules consider all preferences together
