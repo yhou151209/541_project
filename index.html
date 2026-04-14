@@ -3,254 +3,406 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ShiftSync</title>
+<title>ShiftWhisk</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f7f7f7;color:#111}
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --text:#141414;
+  --muted:#7b8190;
+  --line:#e7e9f0;
+  --soft:#f1f3f9;
+  --accent:#111111;
+  --accent-2:#ffb84d;
+  --accent-3:#7c5cff;
+  --success:#0f9d58;
+  --warn:#d97706;
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;background:
+  radial-gradient(circle at top left, rgba(124,92,255,.08), transparent 28%),
+  radial-gradient(circle at top right, rgba(255,184,77,.08), transparent 26%),
+  var(--bg);
+  color:var(--text)
+}
 input,select,textarea,button{font-family:inherit}
+button{transition:transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease}
+button:active{transform:scale(.98)}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-thumb{background:#d6d9e2;border-radius:999px}
 
-/* ── Core layout ── */
+/* Core layout */
 .app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
-.topbar{background:#111;padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar{
+  background:rgba(255,255,255,.75);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(231,233,240,.9);
+  padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{
+  width:34px;height:34px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-3));
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;
+  box-shadow:0 10px 24px rgba(124,92,255,.18);
+}
+.brand-text{display:flex;flex-direction:column}
+.brand-name{font-weight:800;letter-spacing:-.02em}
+.brand-sub{font-size:11px;color:var(--muted)}
 .topbar-right{display:flex;align-items:center;gap:12px;position:relative}
-.topbar-rest{color:#888;font-size:13px}
-.av-btn{width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#111;font-size:11px;font-weight:700;cursor:pointer;border:none}
-.av-btn:hover{background:#e0e0e0}
-.av-dd{position:absolute;top:44px;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.12);min-width:190px;z-index:999;overflow:hidden;display:none}
+.topbar-rest{color:var(--muted);font-size:13px}
+.av-btn{width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#111;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--line)}
+.av-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(20,20,20,.08)}
+.av-dd{position:absolute;top:48px;right:0;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px rgba(17,17,17,.12);min-width:210px;z-index:999;overflow:hidden;display:none}
 .av-dd.open{display:block}
-.dd-hdr{padding:12px 14px;border-bottom:1px solid #f0f0f0}
-.dd-name{font-size:13px;font-weight:600}
-.dd-email{font-size:11px;color:#aaa;margin-top:1px}
-.dd-item{padding:9px 14px;font-size:13px;cursor:pointer;color:#444;transition:background .1s}
-.dd-item:hover{background:#f7f7f7}
-.dd-item.danger{color:#c00}
+.dd-hdr{padding:14px 14px;border-bottom:1px solid #f0f1f5}
+.dd-name{font-size:13px;font-weight:700}
+.dd-email{font-size:11px;color:#9aa1af;margin-top:2px}
+.dd-item{padding:10px 14px;font-size:13px;cursor:pointer;color:#444;transition:background .12s}
+.dd-item:hover{background:#f7f8fb}
+.dd-item.danger{color:#c62828}
 .dd-item.danger:hover{background:#fff5f5}
-.dd-div{border-top:1px solid #f0f0f0}
+.dd-div{border-top:1px solid #f0f1f5}
 .body{display:flex;flex:1;overflow:hidden}
-.sidebar{width:188px;background:#fff;border-right:1px solid #e8e8e8;padding:12px 0;flex-shrink:0;display:flex;flex-direction:column}
-.nav-item{padding:9px 16px;font-size:13px;color:#666;cursor:pointer;display:flex;align-items:center;gap:9px;border-left:2px solid transparent;transition:all .1s}
-.nav-item:hover{background:#f7f7f7;color:#111}
-.nav-item.active{color:#111;background:#f0f0f0;border-left-color:#111;font-weight:600}
+.sidebar{
+  width:216px;background:rgba(255,255,255,.72);backdrop-filter:blur(16px);border-right:1px solid rgba(231,233,240,.9);
+  padding:14px 0;flex-shrink:0;display:flex;flex-direction:column
+}
+.nav-item{
+  margin:4px 12px;padding:10px 14px;border-radius:14px;font-size:13px;color:#666;cursor:pointer;
+  display:flex;align-items:center;gap:10px;transition:all .14s;border:1px solid transparent
+}
+.nav-item:hover{background:#f5f7fc;color:#111;transform:translateX(1px)}
+.nav-item.active{
+  color:#111;background:linear-gradient(180deg,#fff,#f7f8ff);border-color:#e7e9f0;font-weight:700;
+  box-shadow:0 8px 18px rgba(17,17,17,.05)
+}
+.side-note{margin:14px 16px 0;padding:12px;border-radius:14px;background:linear-gradient(180deg,#fff,#fafbff);border:1px solid var(--line)}
+.side-note-title{font-size:11px;font-weight:800;color:#50586a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.side-note p{font-size:12px;color:#8a91a0;line-height:1.5}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.content-area{flex:1;overflow-y:auto;padding:28px 28px 80px}
+.content-area{flex:1;overflow-y:auto;padding:26px 26px 90px}
 .page{display:none}
 .page.active{display:block}
 
-/* ── Auth ── */
-.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f7f7}
-.auth-card{background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:36px 40px;width:400px;max-width:94vw}
-.auth-logo{font-size:24px;font-weight:800;color:#111;margin-bottom:4px;letter-spacing:-.5px}
-.auth-sub{font-size:13px;color:#888;margin-bottom:28px}
-.auth-switch{text-align:center;font-size:13px;color:#888;margin-top:18px}
-.auth-link{color:#111;cursor:pointer;font-weight:600;text-decoration:underline}
+/* Auth */
+.auth-wrap{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(124,92,255,.12), transparent 28%),
+    radial-gradient(circle at 80% 10%, rgba(255,184,77,.12), transparent 24%),
+    linear-gradient(180deg,#f7f8fc,#eef1f8)
+}
+.auth-card{
+  background:rgba(255,255,255,.82);backdrop-filter:blur(16px);
+  border-radius:24px;border:1px solid rgba(255,255,255,.9);padding:38px 40px;width:430px;max-width:94vw;
+  box-shadow:0 20px 70px rgba(30,30,60,.12)
+}
+.auth-logo{font-size:28px;font-weight:900;color:#111;margin-bottom:6px;letter-spacing:-.04em}
+.auth-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
+.auth-switch{text-align:center;font-size:13px;color:var(--muted);margin-top:18px}
+.auth-link{color:#111;cursor:pointer;font-weight:700;text-decoration:underline}
 
-/* ── Setup screen (full page, no sidebar) ── */
-.setup-wrap{min-height:100vh;display:flex;flex-direction:column;background:#f7f7f7}
-.setup-topbar{background:#111;padding:0 24px;height:52px;display:flex;align-items:center;flex-shrink:0}
+/* Setup */
+.setup-wrap{min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+.setup-topbar{
+  background:rgba(255,255,255,.72);backdrop-filter:blur(16px);
+  padding:0 24px;height:58px;display:flex;align-items:center;flex-shrink:0;border-bottom:1px solid rgba(231,233,240,.9)
+}
 .setup-body{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px 80px;overflow-y:auto}
-.setup-inner{width:100%;max-width:600px}
+.setup-inner{width:100%;max-width:720px}
 
-/* ── Buttons ── */
-.btn{padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid #ccc;background:#fff;color:#111;transition:all .15s;font-weight:400}
-.btn:hover{background:#f0f0f0;border-color:#999}
-.btn:active{transform:scale(.98)}
-.btn-primary{background:#111;color:#fff;border-color:#111}
-.btn-primary:hover{background:#333;border-color:#333}
-.btn-sm{padding:5px 12px;font-size:12px}
-.btn-danger{color:#c00;border-color:#fcc;background:#fff}
-.btn-danger:hover{background:#fff5f5}
+/* Buttons */
+.btn{
+  padding:9px 18px;border-radius:12px;font-size:13px;cursor:pointer;border:1px solid #d7dae3;background:#fff;color:#111;font-weight:600
+}
+.btn:hover{background:#f7f8fc;border-color:#bfc6d4;box-shadow:0 8px 22px rgba(20,20,20,.06)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#2c2c35);color:#fff;border-color:#111}
+.btn-primary:hover{background:linear-gradient(135deg,#1a1a1a,#3a3a46);border-color:#1a1a1a}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:10px}
+.btn-danger{color:#c00;border-color:#ffd2d2;background:#fff}
+.btn-danger:hover{background:#fff6f6}
 .btn-ghost{border-color:transparent;background:transparent;color:#111}
-.btn-ghost:hover{background:#f0f0f0}
-.btn-full{width:100%;padding:11px;font-size:14px}
+.btn-ghost:hover{background:#f3f5fb}
+.btn-full{width:100%;padding:12px;font-size:14px}
 
-/* ── Forms ── */
-.fl{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px}
+/* Forms */
+.fl{font-size:11px;color:#8c93a2;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;margin-top:15px;font-weight:700}
 .fl:first-child{margin-top:0}
-.fi{width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 12px;font-size:13px;color:#111;transition:border .15s}
-.fi:focus{outline:none;border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.06)}
+.fi{
+  width:100%;background:#fff;border:1px solid #dde1ea;border-radius:14px;padding:10px 12px;font-size:13px;color:#111;
+  transition:border .15s, box-shadow .15s, transform .15s
+}
+.fi:focus{outline:none;border-color:#9f88ff;box-shadow:0 0 0 4px rgba(124,92,255,.08)}
 select.fi{cursor:pointer}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
-/* ── Cards ── */
-.card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:16px 20px;margin-bottom:12px}
-.card-t{font-size:14px;font-weight:600;margin-bottom:2px}
-.card-s{font-size:12px;color:#999}
+/* Cards */
+.card{
+  background:rgba(255,255,255,.82);backdrop-filter:blur(12px);border:1px solid rgba(231,233,240,.9);
+  border-radius:20px;padding:18px 20px;margin-bottom:12px;box-shadow:0 10px 30px rgba(20,20,20,.04)
+}
+.card-t{font-size:15px;font-weight:800;margin-bottom:4px;letter-spacing:-.02em}
+.card-s{font-size:12px;color:var(--muted)}
 
-/* ── Tags ── */
-.tag{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;color:#111;font-size:12px;padding:4px 10px;border-radius:4px;margin:2px;font-weight:500}
-.tag-x{cursor:pointer;opacity:.4;font-size:13px}
+/* tags */
+.tag{
+  display:inline-flex;align-items:center;gap:6px;background:#f3f5fb;color:#111;font-size:12px;padding:6px 10px;border-radius:999px;
+  margin:3px;font-weight:600;border:1px solid #e5e8f1
+}
+.tag-x{cursor:pointer;opacity:.45;font-size:13px}
 .tag-x:hover{opacity:1}
-.tag-ghost{display:inline-flex;align-items:center;background:transparent;border:1px dashed #ccc;color:#999;font-size:12px;padding:4px 10px;border-radius:4px;margin:2px;cursor:pointer}
+.tag-ghost{display:inline-flex;align-items:center;background:transparent;border:1px dashed #cfd5e3;color:#8f97a7;font-size:12px;padding:6px 10px;border-radius:999px;margin:3px;cursor:pointer}
 .tag-ghost:hover{border-color:#111;color:#111}
 
-/* ── Day toggles ── */
-.dtog{display:inline-flex;align-items:center;justify-content:center;width:52px;height:36px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #ddd;transition:all .15s;margin:2px;user-select:none;font-weight:500}
-.dtog.on{background:#111;color:#fff;border-color:#111}
-.dtog.off{background:#fff;color:#888}
-
-/* ── Per-day hours ── */
-.day-hours-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5}
+/* day hours */
+.day-hours-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #f3f5fa}
 .day-hours-row:last-child{border-bottom:none}
-.day-name{font-size:13px;font-weight:500;width:36px;flex-shrink:0}
-.day-closed{font-size:12px;color:#aaa;margin-left:8px}
-.time-inp{width:80px;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px 8px;font-size:13px;color:#111;text-align:center}
-.time-inp:focus{outline:none;border-color:#111}
-.time-sep{color:#aaa;font-size:12px}
+.day-name{font-size:13px;font-weight:700;width:44px;flex-shrink:0}
+.time-inp{
+  width:90px;background:#f8f9fd;border:1px solid #e0e4ee;border-radius:10px;padding:6px 8px;font-size:13px;color:#111;text-align:center
+}
+.time-inp:focus{outline:none;border-color:#9f88ff}
+.time-sep{color:#b0b6c3;font-size:12px}
 
-/* ── Setup progress ── */
-.prog-bar{display:flex;margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0}
-.prog-step{flex:1;padding:10px 14px;font-size:12px;background:#fff;color:#bbb;border-right:1px solid #e0e0e0;transition:all .2s}
+/* progress */
+.prog-bar{display:flex;margin-bottom:28px;border-radius:16px;overflow:hidden;border:1px solid var(--line);box-shadow:0 10px 26px rgba(20,20,20,.04)}
+.prog-step{flex:1;padding:12px 14px;font-size:12px;background:#fff;color:#b3bac9;border-right:1px solid var(--line);transition:all .2s}
 .prog-step:last-child{border-right:none}
-.prog-step.done{background:#f0f0f0;color:#444}
-.prog-step.active{background:#111;color:#fff;font-weight:600}
-.prog-n{font-size:10px;display:block;margin-bottom:1px;opacity:.6}
-.prog-step.active .prog-n{opacity:.7}
+.prog-step.done{background:#f6f7fd;color:#565d70}
+.prog-step.active{background:linear-gradient(135deg,var(--accent),var(--accent-3));color:#fff;font-weight:700}
+.prog-n{font-size:10px;display:block;margin-bottom:2px;opacity:.72}
 
-/* ── Schedule ── */
+/* schedule */
 .schedule-wrap{overflow-x:auto}
-.sch-tbl{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed}
-.sch-tbl th{font-size:11px;color:#999;padding:8px 4px;text-align:center;font-weight:500;background:#f7f7f7;text-transform:uppercase;letter-spacing:.04em}
-.sch-tbl th.today-h{color:#111;font-weight:700}
-.th-shift{text-align:left;padding-left:4px;width:82px}
-.sch-cell{background:#fff;border-radius:6px;padding:6px 8px;min-height:58px;cursor:pointer;border:1px solid #e8e8e8;transition:all .15s;vertical-align:top}
-.sch-cell:hover{border-color:#999}
-.sch-cell.filled{background:#f0f0f0;border-color:#ccc}
-.sch-cell.filled:hover{background:#e8e8e8;border-color:#999}
-.sch-cell.warn{background:#fff8f0;border-color:#f0c060}
-.sch-cell.warn:hover{background:#fff0e0}
-.cell-rl{font-size:9px;color:#555;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
-.cell-np{display:inline-block;background:#111;color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin:1px 1px 0 0}
-.cell-hint{font-size:10px;color:#ccc;padding-top:4px}
-.cell-wl{font-size:10px;color:#c07000;font-weight:600;margin-top:3px}
-.shift-lbl{font-size:12px;font-weight:600;color:#111}
-.shift-tlbl{font-size:10px;color:#aaa;margin-top:1px}
-.rest-cell{background:#f7f7f7;border-radius:6px;min-height:58px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc;border:1px dashed #e0e0e0}
+.sch-tbl{width:100%;border-collapse:separate;border-spacing:6px;table-layout:fixed}
+.sch-tbl th{
+  font-size:11px;color:#8d95a5;padding:8px 4px;text-align:center;font-weight:700;background:transparent;text-transform:uppercase;letter-spacing:.06em
+}
+.sch-tbl th.today-h{color:#111;font-weight:900}
+.th-shift{text-align:left;padding-left:4px;width:90px}
+.sch-cell{
+  background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border-radius:16px;padding:8px 9px;min-height:78px;cursor:pointer;
+  border:1px solid rgba(230,233,241,.95);transition:all .16s;vertical-align:top;box-shadow:0 8px 20px rgba(20,20,20,.03)
+}
+.sch-cell:hover{border-color:#b9c1d2;transform:translateY(-1px)}
+.sch-cell.filled{background:linear-gradient(180deg,#fff,#f8f9fd)}
+.sch-cell.warn{background:linear-gradient(180deg,#fffaf0,#fff7ea);border-color:#f3d3a1}
+.cell-rl{font-size:9px;color:#555;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.cell-np{
+  display:inline-block;background:#111;color:#fff;font-size:10px;padding:2px 7px;border-radius:999px;margin:2px 4px 0 0;
+  box-shadow:0 6px 14px rgba(17,17,17,.15)
+}
+.cell-hint{font-size:11px;color:#c1c7d4;padding-top:6px}
+.cell-wl{font-size:10px;color:var(--warn);font-weight:700;margin-top:4px}
+.shift-lbl{font-size:12px;font-weight:800;color:#111}
+.shift-tlbl{font-size:10px;color:#9ea5b3;margin-top:2px}
+.rest-cell{
+  background:#f5f7fb;border-radius:16px;min-height:78px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#c0c6d4;border:1px dashed #dde1ea
+}
 
-/* ── Week nav ── */
-.top-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+/* week nav */
+.top-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px}
 .week-nav{display:flex;align-items:center;gap:8px}
-.wk-btn{width:30px;height:30px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#555}
-.wk-btn:hover{background:#f0f0f0}
-.wk-lbl{font-size:13px;color:#555;min-width:64px;text-align:center}
+.wk-btn{
+  width:34px;height:34px;border-radius:12px;border:1px solid #dde1ea;background:#fff;cursor:pointer;font-size:16px;
+  display:flex;align-items:center;justify-content:center;color:#555
+}
+.wk-btn:hover{background:#f7f8fc}
+.wk-lbl{font-size:13px;color:#555;min-width:74px;text-align:center;font-weight:700}
 
-/* ── Staffing table ── */
+/* staffing */
 .stf-tbl{width:100%;border-collapse:collapse}
-.stf-tbl th{font-size:11px;color:#999;text-align:center;padding:8px 6px;border-bottom:1px solid #e8e8e8;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.stf-tbl th{
+  font-size:11px;color:#8d95a5;text-align:center;padding:10px 6px;border-bottom:1px solid #e8ebf2;font-weight:700;text-transform:uppercase;letter-spacing:.05em
+}
 .stf-tbl th:first-child{text-align:left}
-.stf-tbl td{padding:8px 6px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle}
-.stf-tbl td:first-child{text-align:left;font-size:13px;font-weight:500}
-.num-inp{width:52px;text-align:center;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px;font-size:13px;color:#111}
-.num-inp:focus{outline:none;border-color:#111}
-.wd-badge{display:inline-block;background:#f0f0f0;color:#333;font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600}
-.we-badge{display:inline-block;background:#111;color:#fff;font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600}
+.stf-tbl td{padding:10px 6px;border-bottom:1px solid #f0f2f7;text-align:center;vertical-align:middle}
+.stf-tbl td:first-child{text-align:left;font-size:13px;font-weight:700}
+.num-inp{
+  width:56px;text-align:center;background:#f8f9fd;border:1px solid #e0e4ee;border-radius:10px;padding:6px;font-size:13px;color:#111
+}
+.num-inp:focus{outline:none;border-color:#9f88ff}
+.wd-badge,.we-badge{
+  display:inline-block;font-size:10px;padding:3px 8px;border-radius:999px;font-weight:800
+}
+.wd-badge{background:#f1f3f8;color:#334}
+.we-badge{background:#111;color:#fff}
 
-/* ── Employees ── */
-.emp-card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:flex-start;gap:14px;transition:border-color .15s}
-.emp-card:hover{border-color:#999}
-.emp-av{width:40px;height:40px;border-radius:50%;background:#111;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+/* summary */
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.stat-card{
+  position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(255,255,255,.78));
+  border:1px solid rgba(231,233,240,.95);border-radius:20px;padding:16px 16px 14px;
+  box-shadow:0 10px 30px rgba(20,20,20,.04)
+}
+.stat-card:before{
+  content:"";position:absolute;right:-18px;top:-18px;width:74px;height:74px;border-radius:50%;
+  background:radial-gradient(circle, rgba(124,92,255,.14), transparent 64%);
+}
+.stat-label{font-size:11px;color:#8d95a5;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+.stat-value{font-size:28px;font-weight:900;letter-spacing:-.04em;margin-top:6px}
+.stat-meta{font-size:12px;color:#8a91a0;margin-top:4px;line-height:1.45}
+
+/* employees */
+.emp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.emp-card{
+  background:rgba(255,255,255,.86);backdrop-filter:blur(10px);border:1px solid rgba(231,233,240,.95);border-radius:20px;padding:16px;
+  transition:border-color .15s, transform .15s, box-shadow .15s;position:relative;overflow:hidden
+}
+.emp-card:hover{border-color:#c9cfe0;transform:translateY(-2px);box-shadow:0 14px 34px rgba(20,20,20,.06)}
+.emp-card:after{
+  content:"";position:absolute;right:-24px;bottom:-24px;width:92px;height:92px;border-radius:50%;
+  background:radial-gradient(circle, rgba(255,184,77,.12), transparent 62%);
+}
+.emp-top{display:flex;align-items:flex-start;gap:12px}
+.emp-av{
+  width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#111,#7c5cff);display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 10px 22px rgba(124,92,255,.18)
+}
 .emp-info{flex:1;min-width:0}
-.emp-nm{font-size:14px;font-weight:600;margin-bottom:2px}
-.emp-det{font-size:11px;color:#aaa;margin-top:2px}
-.emp-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.ebadge{font-size:11px;padding:2px 8px;border-radius:3px;font-weight:500}
+.emp-nm{font-size:15px;font-weight:800;margin-bottom:3px;letter-spacing:-.02em}
+.emp-det{font-size:12px;color:#8e95a4;line-height:1.5}
+.emp-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ebadge{font-size:11px;padding:4px 8px;border-radius:999px;font-weight:700}
 .eb-role{background:#111;color:#fff}
-.eb-av{background:#f0f0f0;color:#444}
-.eb-sk{background:#f7f7f7;color:#666;border:1px solid #e0e0e0}
+.eb-av{background:#f1f3f8;color:#444}
+.eb-sk{background:#f8f9fd;color:#666;border:1px solid #e0e4ee}
+.emp-actions{display:flex;gap:8px;margin-top:12px;position:relative;z-index:1}
 
-/* ── Toggle grid ── */
+/* toggle grids */
 .etog-grid{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-.rgroup-lbl{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:4px 0 2px;border-top:1px solid #f0f0f0;margin-top:4px}
+.rgroup-lbl{font-size:10px;color:#858da0;text-transform:uppercase;letter-spacing:.07em;font-weight:800;padding:4px 0 2px;border-top:1px solid #f0f2f7;margin-top:4px}
 .rgroup-lbl:first-child{border-top:none;margin-top:0}
-.etog-row{display:flex;flex-wrap:wrap;gap:5px}
-.etog{padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer;border:1px solid #ddd;background:#fff;color:#444;transition:all .15s;user-select:none;font-weight:500}
+.etog-row{display:flex;flex-wrap:wrap;gap:6px}
+.etog{
+  padding:6px 12px;border-radius:999px;font-size:12px;cursor:pointer;border:1px solid #dde2ec;background:#fff;color:#444;
+  transition:all .15s;user-select:none;font-weight:700
+}
 .etog:hover{border-color:#111;color:#111}
-.etog.sel{background:#111;color:#fff;border-color:#111}
+.etog.sel{background:linear-gradient(135deg,#111,#7c5cff);color:#fff;border-color:#111}
 .etog.dis{opacity:.3;cursor:not-allowed}
-
-/* ── Availability (per shift per day) ── */
 .avail-section{margin-top:4px}
 .avail-day-block{margin-bottom:10px}
-.avail-day-name{font-size:11px;font-weight:600;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
-.avail-shift-row{display:flex;flex-wrap:wrap;gap:4px}
-.avail-slot{padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid #ddd;background:#fff;color:#666;transition:all .15s;user-select:none}
+.avail-day-name{font-size:11px;font-weight:800;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+.avail-shift-row{display:flex;flex-wrap:wrap;gap:5px}
+.avail-slot{
+  padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer;border:1px solid #dde2ec;background:#fff;color:#666;transition:all .15s;user-select:none;font-weight:700
+}
 .avail-slot:hover{border-color:#111;color:#111}
-.avail-slot.on{background:#111;color:#fff;border-color:#111}
+.avail-slot.on{background:linear-gradient(135deg,#111,#7c5cff);color:#fff;border-color:#111}
 
-/* ── Shift edit ── */
-.sh-row{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border:1px solid #e8e8e8;border-radius:8px;margin-bottom:8px}
-.sh-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#111}
-.sh-inp{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px 9px;font-size:13px;color:#111}
-.sh-inp:focus{outline:none;border-color:#111}
+/* shift rows */
+.sh-row{
+  display:flex;align-items:center;gap:8px;padding:12px 14px;background:#fff;border:1px solid #e8ebf2;border-radius:16px;margin-bottom:8px
+}
+.sh-dot{
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#111,#7c5cff);
+  box-shadow:0 0 0 5px rgba(124,92,255,.08)
+}
+.sh-inp{background:#f8f9fd;border:1px solid #e0e4ee;border-radius:10px;padding:6px 9px;font-size:13px;color:#111}
+.sh-inp:focus{outline:none;border-color:#9f88ff}
 
-/* ── Section ── */
-.sec-t{font-size:20px;font-weight:700;color:#111;margin-bottom:4px;letter-spacing:-.3px}
-.sec-s{font-size:13px;color:#999;margin-bottom:20px}
+/* section */
+.sec-t{font-size:24px;font-weight:900;color:#111;margin-bottom:5px;letter-spacing:-.04em}
+.sec-s{font-size:13px;color:#8a91a0;margin-bottom:18px;line-height:1.5}
 
-/* ── CSV upload area ── */
+/* upload */
 .upload-choice{display:flex;flex-direction:column;gap:12px;margin:20px 0}
-.choice-card{border:1px solid #e0e0e0;border-radius:10px;padding:20px;background:#fff;cursor:pointer;transition:all .15s;text-align:center}
-.choice-card:hover{border-color:#111}
-.choice-card.selected{border-color:#111;border-width:2px}
+.choice-card{
+  border:1px solid #e0e4ee;border-radius:18px;padding:22px;background:rgba(255,255,255,.82);cursor:pointer;transition:all .15s;text-align:center
+}
+.choice-card:hover{border-color:#111;transform:translateY(-1px)}
+.choice-card.selected{border-color:#111;border-width:2px;box-shadow:0 12px 30px rgba(20,20,20,.06)}
 .choice-icon{font-size:28px;margin-bottom:8px}
-.choice-title{font-size:14px;font-weight:600;margin-bottom:3px}
-.choice-sub{font-size:12px;color:#999}
-.csv-drop{border:2px dashed #ddd;border-radius:10px;padding:32px;text-align:center;margin-top:12px;cursor:pointer;transition:all .15s}
-.csv-drop:hover{border-color:#111;background:#f7f7f7}
+.choice-title{font-size:14px;font-weight:800;margin-bottom:3px}
+.choice-sub{font-size:12px;color:#8a91a0}
+.csv-drop{border:2px dashed #d8dde8;border-radius:18px;padding:34px;text-align:center;margin-top:12px;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.65)}
+.csv-drop:hover{border-color:#111;background:#fafbff}
 .csv-drop-icon{font-size:32px;margin-bottom:8px}
-.csv-drop-text{font-size:13px;color:#888}
-.csv-drop-sub{font-size:11px;color:#ccc;margin-top:4px}
+.csv-drop-text{font-size:13px;color:#707887}
+.csv-drop-sub{font-size:11px;color:#b0b7c4;margin-top:4px}
 
-/* ── AI Chat FAB ── */
+/* chat */
 .chat-fab{position:fixed;bottom:28px;right:28px;z-index:900}
-.fab-btn{width:52px;height:52px;border-radius:50%;background:#111;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:all .2s;color:#fff;font-size:20px;position:relative}
-.fab-btn:hover{background:#333;transform:scale(1.06)}
-.fab-unread{position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:#c00;border-radius:50%;font-size:9px;color:#fff;display:none;align-items:center;justify-content:center;font-weight:700}
-.chat-win{position:fixed;bottom:92px;right:28px;width:340px;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid #e0e0e0;z-index:900;display:none;flex-direction:column;overflow:hidden;max-height:460px}
+.fab-btn{
+  width:58px;height:58px;border-radius:18px;background:linear-gradient(135deg,#111,#7c5cff);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 18px 30px rgba(124,92,255,.24);transition:all .22s;color:#fff;font-size:22px;position:relative;animation:floaty 3.1s ease-in-out infinite
+}
+.fab-btn:hover{transform:translateY(-2px) scale(1.03)}
+.fab-unread{position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#c00;border-radius:50%;font-size:9px;color:#fff;display:none;align-items:center;justify-content:center;font-weight:800}
+.chat-win{
+  position:fixed;bottom:96px;right:28px;width:350px;background:rgba(255,255,255,.92);backdrop-filter:blur(18px);
+  border-radius:22px;box-shadow:0 18px 44px rgba(20,20,20,.18);border:1px solid rgba(231,233,240,.95);z-index:900;display:none;flex-direction:column;overflow:hidden;max-height:470px
+}
 .chat-win.open{display:flex}
-.chat-win-hdr{background:#111;padding:13px 16px;display:flex;align-items:center;gap:10px}
-.chat-win-title{color:#fff;font-size:13px;font-weight:600;flex:1}
-.chat-win-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4)}
-.chat-win-close{color:rgba(255,255,255,.6);cursor:pointer;font-size:18px;line-height:1}
+.chat-win-hdr{
+  background:linear-gradient(135deg,#111,#7c5cff);padding:14px 16px;display:flex;align-items:center;gap:10px
+}
+.chat-win-title{color:#fff;font-size:13px;font-weight:800;flex:1}
+.chat-win-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.55)}
+.chat-win-close{color:rgba(255,255,255,.72);cursor:pointer;font-size:18px;line-height:1}
 .chat-win-close:hover{color:#fff}
 .chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
-.cb{border-radius:8px;padding:9px 12px;font-size:12px;max-width:85%;line-height:1.55;word-break:break-word;white-space:pre-wrap}
-.cb-bot{background:#f7f7f7;color:#111;align-self:flex-start;border-bottom-left-radius:2px}
-.cb-user{background:#111;color:#fff;align-self:flex-end;border-bottom-right-radius:2px}
-.cb-think{background:#f7f7f7;color:#aaa;align-self:flex-start;font-style:italic}
-.chat-inp-row{border-top:1px solid #f0f0f0;display:flex;gap:8px;padding:10px 12px}
-.chat-txt{flex:1;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:20px;padding:7px 14px;font-size:12px;color:#111;outline:none;transition:border .15s}
-.chat-txt:focus{border-color:#111;background:#fff}
-.chat-snd{width:34px;height:34px;border-radius:50%;background:#111;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.chat-snd:hover{background:#333}
+.cb{border-radius:16px;padding:10px 12px;font-size:12px;max-width:86%;line-height:1.55;word-break:break-word;white-space:pre-wrap}
+.cb-bot{background:#f4f6fb;color:#111;align-self:flex-start;border-bottom-left-radius:4px}
+.cb-user{background:#111;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.cb-think{background:#f4f6fb;color:#9ba3b3;align-self:flex-start;font-style:italic}
+.chat-inp-row{border-top:1px solid #eef1f6;display:flex;gap:8px;padding:10px 12px}
+.chat-txt{flex:1;background:#f7f8fc;border:1px solid #e0e4ee;border-radius:999px;padding:8px 14px;font-size:12px;color:#111;outline:none}
+.chat-txt:focus{border-color:#9f88ff;background:#fff}
+.chat-snd{width:36px;height:36px;border-radius:50%;background:#111;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-snd:hover{background:#2c2c35}
 
-/* ── Modal ── */
-.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000}
-.modal{background:#fff;border-radius:12px;padding:24px;width:460px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
-.modal-t{font-size:16px;font-weight:700;margin-bottom:3px}
-.modal-s{font-size:12px;color:#999;margin-bottom:18px}
-.modal-act{display:flex;gap:8px;margin-top:18px}
+/* modal */
+.modal-ov{position:fixed;inset:0;background:rgba(14,18,28,.34);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{
+  background:rgba(255,255,255,.95);backdrop-filter:blur(18px);border-radius:24px;padding:24px;width:520px;max-width:92vw;max-height:88vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(20,20,20,.2);border:1px solid rgba(238,240,245,.9)
+}
+.modal-t{font-size:18px;font-weight:900;margin-bottom:4px;letter-spacing:-.03em}
+.modal-s{font-size:12px;color:#8a91a0;margin-bottom:18px;line-height:1.5}
+.modal-act{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
 
-/* ── Misc ── */
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+/* animation */
+.pulse-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block;margin-right:8px;
+  box-shadow:0 0 0 0 rgba(15,157,88,.45);animation:pulse 1.8s infinite
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(15,157,88,.35)}
+  70%{box-shadow:0 0 0 10px rgba(15,157,88,0)}
+  100%{box-shadow:0 0 0 0 rgba(15,157,88,0)}
+}
+@keyframes floaty{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-4px)}
+}
 @keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
 .loading::after{content:'.';animation:dots .8s infinite}
+
+@media (max-width: 980px){
+  .summary-grid,.emp-grid{grid-template-columns:1fr}
+  .sidebar{width:190px}
+}
 </style>
 </head>
 <body>
 
-<!-- ── AUTH ── -->
+<!-- AUTH -->
 <div id="auth-screen" class="auth-wrap">
   <div class="auth-card">
-    <div class="auth-logo">ShiftSync</div>
-    <div class="auth-sub" id="auth-sub">Sign in to your account</div>
+    <div class="auth-logo">ShiftWhisk</div>
+    <div class="auth-sub" id="auth-sub">Sign in to your manager workspace</div>
     <div id="login-form">
       <div class="fl">Email</div>
       <input class="fi" id="l-email" type="email" placeholder="manager@restaurant.com">
       <div class="fl">Password</div>
       <input class="fi" id="l-pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
       <div style="display:flex;justify-content:flex-end;margin:8px 0 20px">
-        <span style="font-size:12px;color:#aaa;cursor:pointer">Forgot password?</span>
+        <span style="font-size:12px;color:#a2a8b6;cursor:pointer">Forgot password?</span>
       </div>
       <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
       <div class="auth-switch">No account? <span class="auth-link" onclick="switchAuth('reg')">Create one</span></div>
@@ -272,14 +424,21 @@ select.fi{cursor:pointer}
   </div>
 </div>
 
-<!-- ── SETUP (full page, no sidebar) ── -->
+<!-- SETUP -->
 <div id="setup-screen" style="display:none">
   <div class="setup-wrap">
-    <div class="setup-topbar"></div>
+    <div class="setup-topbar">
+      <div class="brand">
+        <div class="brand-mark">SW</div>
+        <div class="brand-text">
+          <div class="brand-name">ShiftWhisk</div>
+          <div class="brand-sub">Manager setup</div>
+        </div>
+      </div>
+    </div>
     <div class="setup-body">
       <div class="setup-inner">
 
-        <!-- Step 1 -->
         <div id="setup-step1">
           <div class="prog-bar">
             <div class="prog-step active"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
@@ -288,7 +447,7 @@ select.fi{cursor:pointer}
             <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
           </div>
           <div class="sec-t">Set up your restaurant</div>
-          <div class="sec-s">This only takes a few minutes and won't be repeated.</div>
+          <div class="sec-s">A cleaner manager dashboard starts with your restaurant basics.</div>
           <div class="fl">Restaurant Name</div>
           <input class="fi" id="s1-name" placeholder="e.g. The Golden Fork">
           <div class="fl" style="margin-top:16px">Operating Days & Hours</div>
@@ -300,7 +459,6 @@ select.fi{cursor:pointer}
           </div>
         </div>
 
-        <!-- Step 2 -->
         <div id="setup-step2" style="display:none">
           <div class="prog-bar">
             <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
@@ -309,10 +467,10 @@ select.fi{cursor:pointer}
             <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
           </div>
           <div class="sec-t">Roles & Shifts</div>
-          <div class="sec-s">Define your job roles and daily shift windows.</div>
+          <div class="sec-s">Define roles and shift windows. Your scheduler will use these as constraints.</div>
           <div class="card">
             <div class="card-t">Job Roles</div>
-            <div class="card-s" style="margin-bottom:12px">Employees are assigned to one primary role.</div>
+            <div class="card-s" style="margin-bottom:12px">Employees have one primary role and can support extra roles.</div>
             <div id="s2-roles"></div>
             <div style="display:flex;gap:8px;margin-top:10px">
               <input class="fi" id="s2-role-inp" placeholder="New role name" style="flex:1" onkeydown="if(event.key==='Enter')addRole()">
@@ -331,7 +489,6 @@ select.fi{cursor:pointer}
           </div>
         </div>
 
-        <!-- Step 3 -->
         <div id="setup-step3" style="display:none">
           <div class="prog-bar">
             <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
@@ -340,7 +497,7 @@ select.fi{cursor:pointer}
             <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
           </div>
           <div class="sec-t">Staffing Requirements</div>
-          <div class="sec-s">Minimum staff per role per shift. Set separately for weekdays and weekends.</div>
+          <div class="sec-s">Set the minimum staff per role per shift. Weekdays and weekends can be different.</div>
           <div class="card"><div id="s3-table"></div></div>
           <div style="display:flex;gap:10px">
             <button class="btn" onclick="goSetup(2)">← Back</button>
@@ -348,7 +505,6 @@ select.fi{cursor:pointer}
           </div>
         </div>
 
-        <!-- Step 4: Employees -->
         <div id="setup-step4" style="display:none">
           <div class="prog-bar">
             <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
@@ -357,7 +513,7 @@ select.fi{cursor:pointer}
             <div class="prog-step active"><span class="prog-n">Step 4 / 4</span>Employees</div>
           </div>
           <div class="sec-t">Add your employees</div>
-          <div class="sec-s">You can import a CSV file or add employees manually later.</div>
+          <div class="sec-s">Import staff by CSV, or skip and add them later from the dashboard.</div>
           <div class="upload-choice">
             <div class="choice-card" id="choice-csv" onclick="selectChoice('csv')">
               <div class="choice-icon">📄</div>
@@ -390,10 +546,16 @@ select.fi{cursor:pointer}
   </div>
 </div>
 
-<!-- ── MAIN APP ── -->
+<!-- MAIN APP -->
 <div id="main-app" class="app" style="display:none">
   <div class="topbar">
-    <div style="width:32px"></div>
+    <div class="brand">
+      <div class="brand-mark">SW</div>
+      <div class="brand-text">
+        <div class="brand-name">ShiftWhisk</div>
+        <div class="brand-sub">Restaurant scheduling workspace</div>
+      </div>
+    </div>
     <div class="topbar-right">
       <span class="topbar-rest" id="topbar-rest"></span>
       <button class="av-btn" id="av-btn" onclick="toggleDd()"><span id="av-init">MG</span></button>
@@ -408,6 +570,7 @@ select.fi{cursor:pointer}
       </div>
     </div>
   </div>
+
   <div class="body">
     <div class="sidebar" id="sidebar">
       <div style="padding:8px 0;flex:1">
@@ -417,21 +580,20 @@ select.fi{cursor:pointer}
         <div class="nav-item" id="nav-shifts" onclick="showPage('shifts')">🕐&nbsp; Shifts</div>
         <div class="nav-item" id="nav-hours" onclick="showPage('hours')">🗓&nbsp; Operating Hours</div>
       </div>
-      <div style="padding:12px 16px;border-top:1px solid #f0f0f0">
-        <div style="font-size:10px;color:#aaa;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">AI Assistant Key</div>
-        <input id="api-key-inp" type="password" placeholder="sk-ant-..." style="width:100%;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:6px 10px;font-size:11px;color:#111" oninput="saveApiKey(this.value)">
-        <div style="font-size:10px;color:#ccc;margin-top:4px">console.anthropic.com</div>
+      <div class="side-note">
+        <div class="side-note-title">Manager snapshot</div>
+        <p>This workspace is for managers. Use the employee page to edit cards, then assign staff from the weekly grid.</p>
       </div>
     </div>
+
     <div class="main">
       <div class="content-area">
 
-        <!-- Schedule -->
         <div class="page active" id="page-schedule">
           <div class="top-actions">
             <div>
               <div class="sec-t">Weekly Schedule</div>
-              <div style="font-size:12px;color:#aaa" id="sch-range"></div>
+              <div style="font-size:12px;color:#8d95a5" id="sch-range"></div>
             </div>
             <div class="week-nav">
               <button class="wk-btn" onclick="changeWeek(-1)">‹</button>
@@ -439,42 +601,48 @@ select.fi{cursor:pointer}
               <button class="wk-btn" onclick="changeWeek(1)">›</button>
             </div>
           </div>
+
+          <div id="summary-wrap"></div>
+
+          <div class="card" style="padding:12px 14px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:#6d7585">
+              <span class="pulse-dot"></span>
+              Live rules: closed days cannot be assigned · max weekly hours respected · one person cannot hold two jobs in the same shift
+            </div>
+          </div>
+
           <div class="schedule-wrap">
             <table class="sch-tbl" id="sch-tbl"></table>
           </div>
         </div>
 
-        <!-- Employees -->
         <div class="page" id="page-employees">
           <div class="top-actions">
             <div>
               <div class="sec-t">Employees</div>
-              <div style="font-size:12px;color:#aaa" id="emp-count"></div>
+              <div style="font-size:12px;color:#8d95a5" id="emp-count"></div>
             </div>
             <button class="btn btn-primary" onclick="openAddEmpModal()">+ Add Employee</button>
           </div>
           <div id="emp-list"></div>
         </div>
 
-        <!-- Staffing Rules -->
         <div class="page" id="page-staffing">
           <div class="sec-t">Staffing Rules</div>
           <div class="sec-s">Minimum staff per role per shift. Weekday and weekend rules are separate.</div>
           <div id="staffing-content"></div>
         </div>
 
-        <!-- Shifts -->
         <div class="page" id="page-shifts">
           <div class="sec-t">Shift Configuration</div>
-          <div class="sec-s">Edit shift names and hours.</div>
+          <div class="sec-s">Edit shift names and times. These affect scheduling duration and weekly-hour checks.</div>
           <div id="shifts-content"></div>
           <button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="addShift();renderShiftsPage()">+ Add Shift</button>
         </div>
 
-        <!-- Operating Hours -->
         <div class="page" id="page-hours">
           <div class="sec-t">Operating Hours</div>
-          <div class="sec-s">Set opening and closing times for each day. Toggle a day off to close it.</div>
+          <div class="sec-s">Set opening and closing times for each day. Closed days cannot receive assignments.</div>
           <div class="card" id="hours-content"></div>
         </div>
 
@@ -485,7 +653,6 @@ select.fi{cursor:pointer}
 
 <div id="modal-root"></div>
 
-<!-- AI Chat FAB -->
 <div class="chat-fab" id="chat-fab" style="display:none">
   <button class="fab-btn" onclick="toggleChat()" title="AI Assistant">
     ✦
@@ -495,13 +662,12 @@ select.fi{cursor:pointer}
 <div class="chat-win" id="chat-win">
   <div class="chat-win-hdr">
     <div class="chat-win-dot"></div>
-    <div class="chat-win-title">AI Scheduling Assistant</div>
+    <div class="chat-win-title">ShiftWhisk Assistant</div>
     <span class="chat-win-close" onclick="toggleChat()">✕</span>
   </div>
   <div class="chat-msgs" id="chat-msgs"></div>
   <div class="chat-inp-row">
-    <input class="chat-txt" id="chat-inp" placeholder="e.g. Put Amy on Monday morning..."
-      onkeydown="if(event.key==='Enter')sendChat()">
+    <input class="chat-txt" id="chat-inp" placeholder="e.g. Put Amy on Monday morning..." onkeydown="if(event.key==='Enter')sendChat()">
     <button class="chat-snd" onclick="sendChat()">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path d="M1 7h12M7 1l6 6-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -515,32 +681,98 @@ const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DAYS_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const WEEKEND=[5,6];
 
-// ── Storage ──
-function getAccounts(){try{return JSON.parse(localStorage.getItem('ss_accounts')||'{}')}catch(e){return{}}}
-function saveAccounts(a){localStorage.setItem('ss_accounts',JSON.stringify(a))}
-function getCurrentUser(){return localStorage.getItem('ss_cur')||null}
-function setCurrentUser(e){localStorage.setItem('ss_cur',e||'')}
+/* Storage */
+function getAccounts(){try{return JSON.parse(localStorage.getItem('sw_accounts')||'{}')}catch(e){return{}}}
+function saveAccounts(a){localStorage.setItem('sw_accounts',JSON.stringify(a))}
+function getCurrentUser(){return localStorage.getItem('sw_cur')||null}
+function setCurrentUser(e){localStorage.setItem('sw_cur',e||'')}
 
 function defaultData(name,email){
-  // Default hours: each day has {open, close, closed}
   const defaultHours={};
   DAYS.forEach((d,i)=>{defaultHours[i]={open:'09:00',close:'22:00',closed:i===6}});
-  return{name,email,password:'',setup:false,
+  return {
+    name,email,password:'',setup:false,
     restaurant:{name:'',hours:defaultHours},
     roles:['Server','Cashier','Cook','Dishwasher','Supervisor'],
-    shifts:[{id:'sh1',name:'Morning',start:'09:00',end:'14:00'},{id:'sh2',name:'Afternoon',start:'13:00',end:'18:00'},{id:'sh3',name:'Evening',start:'17:00',end:'22:00'}],
-    staffing:{},employees:[],schedule:{},weekOffset:0,chatHistory:[],apiKey:''}
+    shifts:[
+      {id:'sh1',name:'Morning',start:'09:00',end:'14:00'},
+      {id:'sh2',name:'Afternoon',start:'13:00',end:'18:00'},
+      {id:'sh3',name:'Evening',start:'17:00',end:'22:00'}
+    ],
+    staffing:{},
+    employees:[],
+    schedule:{},
+    weekOffset:0,
+    chatHistory:[]
+  }
 }
 
 let CE=null,D=null;
-function loadSess(){CE=getCurrentUser();if(CE){const a=getAccounts();D=a[CE]||null}}
-function save(){if(CE&&D){const a=getAccounts();a[CE]=D;saveAccounts(a)}}
+function loadSess(){
+  CE=getCurrentUser();
+  if(CE){
+    const a=getAccounts();
+    D=a[CE]||null;
+    normalizeLegacyData();
+  }
+}
+function save(){
+  if(CE&&D){
+    const a=getAccounts();
+    a[CE]=D;
+    saveAccounts(a)
+  }
+}
+function normalizeLegacyData(){
+  if(!D)return;
+  if(!D.restaurant) D.restaurant={name:'',hours:{}};
+  if(!D.restaurant.hours){
+    const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:i===6}});
+    D.restaurant.hours=h;
+  }
+  if(!Array.isArray(D.roles)) D.roles=[];
+  if(!Array.isArray(D.shifts)) D.shifts=[];
+  if(!D.staffing) D.staffing={};
+  if(!Array.isArray(D.employees)) D.employees=[];
+  if(!D.schedule) D.schedule={};
+  // migrate old schedule format from [empId] to [{empId, role}]
+  Object.keys(D.schedule).forEach(key=>{
+    const val=D.schedule[key];
+    if(Array.isArray(val) && val.length && typeof val[0]==='string'){
+      const migrated=[];
+      val.forEach(empId=>{
+        const emp=D.employees.find(e=>e.id===empId);
+        if(emp && !migrated.some(x=>x.empId===empId)) migrated.push({empId, role:emp.primaryRole});
+      });
+      D.schedule[key]=migrated;
+    } else if(Array.isArray(val) && (!val.length || typeof val[0]==='object')) {
+      const dedup=[];
+      val.forEach(item=>{
+        if(item && item.empId && !dedup.some(x=>x.empId===item.empId)){
+          dedup.push({empId:item.empId, role:item.role || (D.employees.find(e=>e.id===item.empId)?.primaryRole || '')});
+        }
+      });
+      D.schedule[key]=dedup;
+    } else {
+      D.schedule[key]=[];
+    }
+  });
+  D.employees = D.employees.map(e=>({
+    id:e.id || ('emp'+Date.now()+Math.random()),
+    name:e.name || 'Unnamed',
+    primaryRole:e.primaryRole || D.roles[0] || 'Staff',
+    seniority:parseInt(e.seniority)||0,
+    maxHours:parseInt(e.maxHours)||40,
+    availability:Array.isArray(e.availability)?e.availability:[],
+    skills:Array.isArray(e.skills)?e.skills:[]
+  }));
+}
 
-// ── Auth ──
+/* Auth */
 function switchAuth(m){
   document.getElementById('login-form').style.display=m==='login'?'':'none';
   document.getElementById('reg-form').style.display=m==='reg'?'':'none';
-  document.getElementById('auth-sub').textContent=m==='login'?'Sign in to your account':'Create a new account';
+  document.getElementById('auth-sub').textContent=m==='login'?'Sign in to your manager workspace':'Create a new manager account';
 }
 function doLogin(){
   const email=document.getElementById('l-email').value.trim().toLowerCase();
@@ -580,45 +812,46 @@ function toggleDd(){document.getElementById('av-dd').classList.toggle('open')}
 function closeDD(){document.getElementById('av-dd').classList.remove('open')}
 document.addEventListener('click',e=>{if(document.getElementById('av-btn')&&!document.getElementById('av-btn').contains(e.target))closeDD()});
 
-// ── Enter app ──
+/* Enter app */
 function enterApp(){
   document.getElementById('auth-screen').style.display='none';
   if(!D.setup){
-    // New account → setup (separate full-page, no sidebar)
     document.getElementById('main-app').style.display='none';
     document.getElementById('setup-screen').style.display='block';
     document.getElementById('chat-fab').style.display='none';
     goSetup(1);
   } else {
-    // Returning user → main app
     document.getElementById('setup-screen').style.display='none';
     document.getElementById('main-app').style.display='flex';
-    const init=D.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    document.getElementById('av-init').textContent=init;
-    document.getElementById('dd-name').textContent=D.name;
-    document.getElementById('dd-email').textContent=D.email;
-    document.getElementById('topbar-rest').textContent=D.restaurant.name;
-    if(D.apiKey)document.getElementById('api-key-inp').value=D.apiKey;
+    hydrateTopbar();
     document.getElementById('chat-fab').style.display='block';
     document.getElementById('chat-msgs').innerHTML='';
     D.chatHistory.slice(-20).forEach(m=>appendBubble(m.type,m.text));
     showPage('schedule');
   }
 }
+function hydrateTopbar(){
+  const init=(D.name||'MG').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('av-init').textContent=init;
+  document.getElementById('dd-name').textContent=D.name||'Manager';
+  document.getElementById('dd-email').textContent=D.email||'';
+  document.getElementById('topbar-rest').textContent=D.restaurant?.name || 'Restaurant';
+}
 
-// ── Setup ──
+/* Setup */
 function goSetup(n){
   [1,2,3,4].forEach(i=>{
     const el=document.getElementById('setup-step'+i);
     if(el) el.style.display=i===n?'':'none';
   });
-  if(n===1) renderDayHours();
+  if(n===1){
+    document.getElementById('s1-name').value=D.restaurant?.name||'';
+    renderDayHours();
+  }
   if(n===2){renderRoles();renderShiftsSetup()}
   if(n===3) renderS3();
   if(n===4) resetStep4();
 }
-
-// Day hours (step 1)
 function renderDayHours(){
   const c=document.getElementById('s1-day-hours');
   if(!D.restaurant.hours){
@@ -652,14 +885,11 @@ function toggleDayClosed(i){
   save();
 }
 function updateHour(i,type,val){D.restaurant.hours[i][type]=val;save()}
-
 function setup1Next(){
   const name=document.getElementById('s1-name').value.trim();
   if(!name){alert('Please enter your restaurant name.');return}
   D.restaurant.name=name;save();goSetup(2);
 }
-
-// Roles
 function renderRoles(){
   const c=document.getElementById('s2-roles');c.innerHTML='';
   D.roles.forEach((r,i)=>{
@@ -667,28 +897,42 @@ function renderRoles(){
     t.innerHTML=r+`<span class="tag-x" onclick="removeRole(${i})">×</span>`;c.appendChild(t);
   });
 }
-function removeRole(i){D.roles.splice(i,1);renderRoles()}
+function removeRole(i){
+  const role=D.roles[i];
+  if(D.employees.some(e=>e.primaryRole===role || (e.skills||[]).includes(role))){
+    alert('This role is still used by employees. Update those employee cards first.');
+    return;
+  }
+  D.roles.splice(i,1);save();renderRoles();
+}
 function addRole(){
   const v=document.getElementById('s2-role-inp').value.trim();
-  if(v&&!D.roles.includes(v)){D.roles.push(v);renderRoles();document.getElementById('s2-role-inp').value=''}
+  if(v&&!D.roles.includes(v)){D.roles.push(v);save();renderRoles();document.getElementById('s2-role-inp').value=''}
 }
-
-// Shifts
 function renderShiftsSetup(){
   const c=document.getElementById('s2-shifts');c.innerHTML='';
   D.shifts.forEach((sh,i)=>{
     const d=document.createElement('div');d.className='sh-row';
     d.innerHTML=`<div class="sh-dot"></div>
-      <input class="sh-inp" style="width:100px" value="${sh.name}" onchange="D.shifts[${i}].name=this.value;save()">
-      <input class="sh-inp" style="width:68px" value="${sh.start}" onchange="D.shifts[${i}].start=this.value;save()">
+      <input class="sh-inp" style="width:110px" value="${sh.name}" onchange="D.shifts[${i}].name=this.value;save()">
+      <input class="sh-inp" style="width:74px" value="${sh.start}" onchange="D.shifts[${i}].start=this.value;save()">
       <span style="color:#aaa;font-size:12px">—</span>
-      <input class="sh-inp" style="width:68px" value="${sh.end}" onchange="D.shifts[${i}].end=this.value;save()">
-      <button class="btn btn-sm btn-danger" onclick="D.shifts.splice(${i},1);save();renderShiftsSetup()" style="margin-left:auto">Remove</button>`;
+      <input class="sh-inp" style="width:74px" value="${sh.end}" onchange="D.shifts[${i}].end=this.value;save()">
+      <button class="btn btn-sm btn-danger" onclick="removeShift('${sh.id}')" style="margin-left:auto">Remove</button>`;
     c.appendChild(d);
   });
 }
 function addShift(){D.shifts.push({id:'sh'+Date.now(),name:'New Shift',start:'08:00',end:'16:00'});save()}
-
+function removeShift(shiftId){
+  if(Object.keys(D.schedule||{}).some(k=>k.endsWith('|'+shiftId) && (D.schedule[k]||[]).length)){
+    alert('This shift still has assignments. Clear those assignments first.');
+    return;
+  }
+  D.shifts=D.shifts.filter(s=>s.id!==shiftId);
+  save();
+  renderShiftsSetup();
+  renderShiftsPage();
+}
 function ensureStaffingDefaults(){
   if(!D.staffing)D.staffing={};
   D.roles.forEach(role=>{
@@ -699,15 +943,13 @@ function ensureStaffingDefaults(){
     });
   });
 }
-
-// S3 staffing
 function renderS3(){
   const c=document.getElementById('s3-table');
-  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#aaa;font-size:13px">Set up roles and shifts first.</p>';return}
+  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#8d95a5;font-size:13px">Set up roles and shifts first.</p>';return}
   ensureStaffingDefaults();
   save();
   let html=`<table class="stf-tbl"><thead><tr><th>Role</th>`;
-  D.shifts.forEach(sh=>{html+=`<th>${sh.name}<div style="font-size:9px;color:#aaa;font-weight:400;text-transform:none;letter-spacing:0">${sh.start}—${sh.end}</div><div style="margin-top:4px"><span class="wd-badge">Weekday</span> <span class="we-badge">Weekend</span></div></th>`});
+  D.shifts.forEach(sh=>{html+=`<th>${sh.name}<div style="font-size:9px;color:#9ea5b3;font-weight:500;text-transform:none;letter-spacing:0">${sh.start}—${sh.end}</div><div style="margin-top:4px"><span class="wd-badge">Weekday</span> <span class="we-badge">Weekend</span></div></th>`});
   html+='</tr></thead><tbody>';
   D.roles.forEach(role=>{
     html+=`<tr><td>${role}</td>`;
@@ -715,7 +957,7 @@ function renderS3(){
       const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
       const vd=D.staffing[kd]!==undefined?D.staffing[kd]:1;
       const vw=D.staffing[kw]!==undefined?D.staffing[kw]:2;
-      html+=`<td style="vertical-align:top;padding-top:10px"><div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      html+=`<td style="vertical-align:top;padding-top:10px"><div style="display:flex;flex-direction:column;gap:6px;align-items:center">
         <input type="number" class="num-inp" min="0" max="30" value="${vd}" onchange="D.staffing['${kd}']=parseInt(this.value)||0;save()">
         <input type="number" class="num-inp" min="0" max="30" value="${vw}" onchange="D.staffing['${kw}']=parseInt(this.value)||0;save()">
       </div></td>`;
@@ -724,7 +966,6 @@ function renderS3(){
   });
   html+='</tbody></table>';c.innerHTML=html;
 }
-
 function setup2Next(){
   if(!D.roles.length){alert('Please add at least one role.');return}
   if(!D.shifts.length){alert('Please add at least one shift.');return}
@@ -732,16 +973,20 @@ function setup2Next(){
 }
 function setup3Next(){save();goSetup(4)}
 
-// Step 4: employee upload
 let csvChoice=null;
-function resetStep4(){csvChoice=null;document.getElementById('csv-upload-area').style.display='none';['choice-csv','choice-skip'].forEach(id=>document.getElementById(id).classList.remove('selected'))}
+function resetStep4(){
+  csvChoice=null;
+  document.getElementById('csv-upload-area').style.display='none';
+  ['choice-csv','choice-skip'].forEach(id=>document.getElementById(id).classList.remove('selected'));
+  document.getElementById('csv-preview').innerHTML='';
+  delete document.getElementById('csv-preview').dataset.imported;
+}
 function selectChoice(c){
   csvChoice=c;
   ['choice-csv','choice-skip'].forEach(id=>document.getElementById(id).classList.remove('selected'));
   document.getElementById('choice-'+c).classList.add('selected');
   document.getElementById('csv-upload-area').style.display=c==='csv'?'block':'none';
 }
-
 function handleCSV(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
@@ -749,8 +994,7 @@ function handleCSV(input){
     const lines=e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
     const preview=document.getElementById('csv-preview');
     const imported=[];
-    // Skip header row if it contains text
-    const startIdx=lines[0].toLowerCase().includes('name')?1:0;
+    const startIdx=lines[0] && lines[0].toLowerCase().includes('name')?1:0;
     lines.slice(startIdx).forEach(line=>{
       const cols=line.split(',').map(c=>c.trim());
       if(!cols[0])return;
@@ -760,7 +1004,7 @@ function handleCSV(input){
       const maxHours=parseInt(cols[3])||40;
       imported.push({id:'emp'+Date.now()+Math.random(),name,primaryRole:role,seniority,maxHours,availability:[],skills:[]});
     });
-    preview.innerHTML=`<div style="background:#f7f7f7;border-radius:8px;padding:12px 14px;font-size:12px;color:#555">
+    preview.innerHTML=`<div style="background:#f7f8fc;border:1px solid #e7eaf2;border-radius:14px;padding:12px 14px;font-size:12px;color:#555">
       <strong>${imported.length} employee${imported.length!==1?'s':''} ready to import</strong><br>
       ${imported.slice(0,3).map(e=>`${e.name} (${e.primaryRole})`).join(', ')}${imported.length>3?` and ${imported.length-3} more...`:''}
     </div>`;
@@ -768,10 +1012,8 @@ function handleCSV(input){
   };
   reader.readAsText(file);
 }
-
 function finishSetup(){
   ensureStaffingDefaults();
-  // Import CSV employees if chosen
   const preview=document.getElementById('csv-preview');
   if(csvChoice==='csv'&&preview.dataset.imported){
     try{const emps=JSON.parse(preview.dataset.imported);D.employees=[...D.employees,...emps]}catch(e){}
@@ -779,18 +1021,13 @@ function finishSetup(){
   D.setup=true;save();
   document.getElementById('setup-screen').style.display='none';
   document.getElementById('main-app').style.display='flex';
-  const init=D.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  document.getElementById('av-init').textContent=init;
-  document.getElementById('dd-name').textContent=D.name;
-  document.getElementById('dd-email').textContent=D.email;
-  document.getElementById('topbar-rest').textContent=D.restaurant.name;
-  if(D.apiKey)document.getElementById('api-key-inp').value=D.apiKey;
+  hydrateTopbar();
   document.getElementById('chat-fab').style.display='block';
-  addChat('bot',`All set! ${D.restaurant.name} is ready.\n\nTell me what to do, e.g.:\n• "Assign Amy to Monday morning"\n• "Swap Carl and Diana on Wednesday afternoon"\n• "Clear the Friday evening shift"`);
+  addChat('bot',`ShiftWhisk is ready.\n\nTry messages like:\n• "Assign Amy to Monday morning"\n• "Swap Carl and Diana on Wednesday afternoon"\n• "Clear the Friday evening shift"`);
   showPage('schedule');
 }
 
-// ── Pages ──
+/* Pages */
 function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -803,13 +1040,36 @@ function showPage(name){
   if(name==='hours')renderHoursPage();
 }
 
-// ── Schedule ──
-function getMonday(offset){const d=new Date(),day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);d.setHours(0,0,0,0);return d}
+/* Schedule helpers */
+function getMonday(offset){
+  const d=new Date(),day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);d.setHours(0,0,0,0);return d
+}
 function fmtDate(d){return(d.getMonth()+1)+'/'+(d.getDate())}
 function schedKey(wo,di,sid){return`${wo}|${di}|${sid}`}
-function getAssigned(wo,di,sid){return D.schedule[schedKey(wo,di,sid)]||[]}
+function getAssigned(wo,di,sid){
+  const val=D.schedule[schedKey(wo,di,sid)]||[];
+  if(val.length && typeof val[0]==='string'){
+    return val.map(empId=>({empId, role:(D.employees.find(e=>e.id===empId)?.primaryRole || '')}));
+  }
+  return val;
+}
+function setAssigned(wo,di,sid,items){
+  D.schedule[schedKey(wo,di,sid)] = dedupeAssignments(items);
+}
+function dedupeAssignments(items){
+  const out=[];
+  (items||[]).forEach(item=>{
+    if(item && item.empId && !out.some(x=>x.empId===item.empId)){
+      out.push({empId:item.empId, role:item.role || (D.employees.find(e=>e.id===item.empId)?.primaryRole || '')});
+    }
+  });
+  return out;
+}
 function isDayClosed(di){return D.restaurant.hours&&D.restaurant.hours[di]&&D.restaurant.hours[di].closed}
-function neededForRole(sid,di,role){const isWE=WEEKEND.includes(di);return D.staffing[sid+'_'+role+'_'+(isWE?'we':'wd')]||0}
+function neededForRole(sid,di,role){
+  const isWE=WEEKEND.includes(di);
+  return D.staffing[sid+'_'+role+'_'+(isWE?'we':'wd')]||0
+}
 function neededTotal(sid,di){return D.roles.reduce((s,r)=>s+neededForRole(sid,di,r),0)}
 function shiftDurationHours(sid){
   const sh=D.shifts.find(s=>s.id===sid);
@@ -822,10 +1082,11 @@ function shiftDurationHours(sid){
 }
 function getEmployeeWeeklyHours(empId,weekOffset,excludeCellKey=null){
   let total=0;
-  Object.entries(D.schedule||{}).forEach(([key,empIds])=>{
+  Object.entries(D.schedule||{}).forEach(([key,assignments])=>{
     if(!key.startsWith(weekOffset+'|'))return;
     if(excludeCellKey&&key===excludeCellKey)return;
-    if((empIds||[]).includes(empId)){
+    const arr=Array.isArray(assignments)?assignments:[];
+    if(arr.some(a=>typeof a==='string'?a===empId:a.empId===empId)){
       const sid=key.split('|')[2];
       total+=shiftDurationHours(sid);
     }
@@ -842,9 +1103,11 @@ function getEligibleEmployeesForRole(role,di,sid,key){
   if(isDayClosed(di))return [];
   const slotKey=di+'_'+sid;
   const shiftHours=shiftDurationHours(sid);
+  const currentCell=getAssigned(D.weekOffset,di,sid);
   return D.employees.filter(e=>{
     const roleType=getEmployeeRoleType(e,role);
     if(roleType==='none')return false;
+    if(currentCell.some(a=>a.empId===e.id) && !currentCell.some(a=>a.empId===e.id && a.role===role)) return false; // already occupies another role in same shift
     const avail=e.availability||[];
     if(avail.length && !avail.includes(slotKey))return false;
     const weeklyHours=getEmployeeWeeklyHours(e.id,D.weekOffset,key);
@@ -856,8 +1119,57 @@ function getEligibleEmployeesForRole(role,di,sid,key){
     return a.name.localeCompare(b.name);
   });
 }
-
+function getRoleBreakdown(){
+  const counts={};
+  D.roles.forEach(r=>counts[r]=0);
+  D.employees.forEach(e=>{counts[e.primaryRole]=(counts[e.primaryRole]||0)+1});
+  return counts;
+}
+function getOpenDaysCount(){
+  return DAYS.reduce((n,_,i)=>n + (isDayClosed(i)?0:1),0);
+}
+function getAssignedTodayCount(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const mon=getMonday(D.weekOffset);
+  const todayDi=(today.getDay()||7)-1;
+  if(D.weekOffset!==0) return 0;
+  return D.shifts.reduce((n,sh)=>n+getAssigned(D.weekOffset,todayDi,sh.id).length,0);
+}
+function renderSummaryCards(){
+  const wrap=document.getElementById('summary-wrap');
+  const roleCounts=getRoleBreakdown();
+  const topRole=Object.entries(roleCounts).sort((a,b)=>b[1]-a[1])[0];
+  const scheduledHoursAll=D.employees.reduce((sum,e)=>sum+getEmployeeWeeklyHours(e.id,D.weekOffset),0);
+  wrap.innerHTML=`
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Employees</div>
+        <div class="stat-value">${D.employees.length}</div>
+        <div class="stat-meta">Across ${D.roles.length} configured role${D.roles.length===1?'':'s'}.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Most Common Role</div>
+        <div class="stat-value" style="font-size:22px">${topRole?topRole[0]:'—'}</div>
+        <div class="stat-meta">${topRole?topRole[1]+' employee'+(topRole[1]===1?'':'s'):'No employees yet'} in this primary role.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Open Days</div>
+        <div class="stat-value">${getOpenDaysCount()}</div>
+        <div class="stat-meta">Out of 7 days configured this week.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Scheduled Hours</div>
+        <div class="stat-value">${formatHoursLabel(scheduledHoursAll)}</div>
+        <div class="stat-meta">${D.weekOffset===0?getAssignedTodayCount()+' assignment'+(getAssignedTodayCount()===1?'':'s')+' today':'For the selected week view'}.</div>
+      </div>
+    </div>
+    <div class="summary-grid" style="grid-template-columns:repeat(${Math.max(1, Math.min(4, D.roles.length||1))},minmax(0,1fr));margin-top:-2px">
+      ${D.roles.map(role=>`<div class="stat-card"><div class="stat-label">${role}</div><div class="stat-value">${roleCounts[role]||0}</div><div class="stat-meta">Primary-role employee count.</div></div>`).join('')}
+    </div>
+  `;
+}
 function renderSchedule(){
+  renderSummaryCards();
   const mon=getMonday(D.weekOffset);
   const sun=new Date(mon);sun.setDate(sun.getDate()+6);
   document.getElementById('sch-range').textContent=fmtDate(mon)+' — '+fmtDate(sun);
@@ -873,10 +1185,10 @@ function renderSchedule(){
     const isWE=WEEKEND.includes(di);
     const hours=D.restaurant.hours&&D.restaurant.hours[di];
     html+=`<th class="${isToday?'today-h':''}" style="${isClosed?'opacity:.35':''}">
-      ${DAYS[di]}${isWE?' <span style="font-size:9px;font-weight:700;color:#aaa">WE</span>':''}
-      <br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">${fmtDate(d)}</span>
-      ${hours&&!isClosed?`<br><span style="font-size:9px;color:#ccc;font-weight:400;text-transform:none;letter-spacing:0">${hours.open}–${hours.close}</span>`:''}
-      ${isToday?'<br><span style="font-size:9px;font-weight:700">TODAY</span>':''}
+      ${DAYS[di]}${isWE?' <span style="font-size:9px;font-weight:800;color:#9aa1af">WE</span>':''}
+      <br><span style="font-weight:500;font-size:10px;text-transform:none;letter-spacing:0">${fmtDate(d)}</span>
+      ${hours&&!isClosed?`<br><span style="font-size:9px;color:#bcc3d1;font-weight:500;text-transform:none;letter-spacing:0">${hours.open}–${hours.close}</span>`:''}
+      ${isToday?'<br><span style="font-size:9px;font-weight:800">TODAY</span>':''}
     </th>`;
   }
   html+='</tr></thead><tbody>';
@@ -892,7 +1204,13 @@ function renderSchedule(){
       if(assigned.length===0){html+=`<div class="cell-hint">+ Assign</div>`}
       else{
         const byRole={};
-        assigned.forEach(eid=>{const emp=D.employees.find(e=>e.id===eid);if(emp){byRole[emp.primaryRole]=byRole[emp.primaryRole]||[];byRole[emp.primaryRole].push(emp.name)}});
+        assigned.forEach(item=>{
+          const emp=D.employees.find(e=>e.id===item.empId);
+          if(emp){
+            byRole[item.role]=byRole[item.role]||[];
+            byRole[item.role].push(emp.name);
+          }
+        });
         Object.entries(byRole).forEach(([role,names])=>{
           html+=`<div class="cell-rl">${role}</div><div>`;
           names.forEach(n=>{html+=`<span class="cell-np">${n.split(' ')[0]}</span>`});
@@ -906,7 +1224,6 @@ function renderSchedule(){
   });
   html+='</tbody>';tbl.innerHTML=html;
 }
-
 function openCellModal(di,sid){
   const sh=D.shifts.find(s=>s.id===sid);
   const assigned=getAssigned(D.weekOffset,di,sid);
@@ -917,26 +1234,36 @@ function openCellModal(di,sid){
   D.roles.forEach(role=>{
     const limit=neededForRole(sid,di,role);
     const eligible=getEligibleEmployeesForRole(role,di,sid,key);
-    if(!eligible.length)return;
-    const curCount=assigned.filter(eid=>{const emp=D.employees.find(x=>x.id===eid);return emp&&getEmployeeRoleType(emp,role)!=='none'}).length;
-    togglesHtml+=`<div class="rgroup-lbl" id="lbl-${role.replace(/\s/g,'_')}">${role} <span style="font-weight:400;color:#bbb">(need ${limit} · assigned ${curCount})</span></div><div class="etog-row">`;
-    eligible.forEach(e=>{
-      const sel=assigned.includes(e.id);
-      const atLim=!sel&&curCount>=limit;
-      const roleType=getEmployeeRoleType(e,role);
-      const weeklyHours=getEmployeeWeeklyHours(e.id,D.weekOffset,key);
-      const shiftHours=shiftDurationHours(sid);
-      const badge=roleType==='primary'?'P':'S';
-      const title=`${roleType==='primary'?'Primary role':'Qualified skill'} · ${weeklyHours.toFixed(1)}h assigned, ${(weeklyHours+shiftHours).toFixed(1)}h after this shift`;
-      togglesHtml+=`<div class="etog ${sel?'sel':''} ${atLim?'dis':''}" title="${title}" data-id="${e.id}" data-role="${encodeURIComponent(role)}" data-limit="${limit}" onclick="toggleEmp(this,'${sid}',${di})">${e.name.split(' ')[0]} <span style="opacity:.7">${badge}</span></div>`;
-    });
+    const curCount=assigned.filter(a=>a.role===role).length;
+    togglesHtml+=`<div class="rgroup-lbl" id="lbl-${role.replace(/\s/g,'_')}">${role} <span style="font-weight:500;color:#b0b7c4">(need ${limit} · assigned ${curCount})</span></div><div class="etog-row">`;
+    if(!eligible.length){
+      togglesHtml+=`<div style="font-size:12px;color:#a2a9b7;padding:3px 0 8px">No eligible employees</div>`;
+    } else {
+      eligible.forEach(e=>{
+        const sel=assigned.some(a=>a.empId===e.id && a.role===role);
+        const takenByOtherRole=assigned.some(a=>a.empId===e.id && a.role!==role);
+        const atLim=!sel&&curCount>=limit;
+        const roleType=getEmployeeRoleType(e,role);
+        const weeklyHours=getEmployeeWeeklyHours(e.id,D.weekOffset,key);
+        const shiftHours=shiftDurationHours(sid);
+        const badge=roleType==='primary'?'P':'S';
+        const title=takenByOtherRole
+          ? `${e.name} is already assigned to another role in this shift`
+          : `${roleType==='primary'?'Primary role':'Qualified skill'} · ${weeklyHours.toFixed(1)}h assigned, ${(weeklyHours+shiftHours).toFixed(1)}h after this shift`;
+        togglesHtml+=`<div class="etog ${sel?'sel':''} ${(atLim||takenByOtherRole)?'dis':''}" title="${title}" data-id="${e.id}" data-role="${encodeURIComponent(role)}" data-limit="${limit}" onclick="toggleEmp(this,'${sid}',${di})">${e.name.split(' ')[0]} <span style="opacity:.75">${badge}</span></div>`;
+      });
+    }
     togglesHtml+='</div>';
   });
-  if(!togglesHtml)togglesHtml='<div style="color:#aaa;font-size:13px;padding:8px 0">No eligible employees for this slot.<br>Employees must be available, within max weekly hours, and qualified for the role.</div>';
   document.getElementById('modal-root').innerHTML=`<div class="modal-ov" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-t">${DAYS_FULL[di]} · ${sh.name}</div>
       <div class="modal-s">${sh.start}–${sh.end} &nbsp;·&nbsp; ${isWE?'Weekend':'Weekday'} &nbsp;·&nbsp; ${needed} needed total</div>
+      <div class="card" style="padding:12px 14px;margin-bottom:14px;background:#fafbff">
+        <div style="font-size:12px;color:#6f7889;line-height:1.5">
+          Each employee can appear only once in this shift. That prevents one person from counting as two jobs at the same time.
+        </div>
+      </div>
       <div class="etog-grid" id="etog-grid">${togglesHtml}</div>
       <div class="modal-act">
         <button class="btn btn-primary" onclick="saveCellModal(${di},'${sid}')">Save</button>
@@ -946,96 +1273,123 @@ function openCellModal(di,sid){
     </div>
   </div>`;
 }
-
 function toggleEmp(el,sid,di){
-  if(el.classList.contains('dis'))return;
+  if(el.classList.contains('dis') && !el.classList.contains('sel'))return;
   const empId=el.dataset.id;
   const role=decodeURIComponent(el.dataset.role);
   const limit=parseInt(el.dataset.limit);
   const key=schedKey(D.weekOffset,di,sid);
-  let assigned=D.schedule[key]||[];
+  let assigned=getAssigned(D.weekOffset,di,sid);
+
   if(el.classList.contains('sel')){
-    assigned=assigned.filter(id=>id!==empId);el.classList.remove('sel');
+    assigned=assigned.filter(a=>!(a.empId===empId && a.role===role));
+    el.classList.remove('sel');
   } else {
     const emp=D.employees.find(x=>x.id===empId);
-    const curCount=assigned.filter(eid=>{const e=D.employees.find(x=>x.id===eid);return e&&getEmployeeRoleType(e,role)!=='none'}).length;
+    const curCount=assigned.filter(a=>a.role===role).length;
     if(curCount>=limit)return;
     if(!emp)return;
     if(isDayClosed(di)){alert('This day is closed, so no assignment can be added.');return}
+    if(assigned.some(a=>a.empId===empId)){alert(emp.name+' is already assigned to another role in this same shift.');return}
     const avail=emp.availability||[];
-    if(avail.length && !avail.includes(di+'_'+sid)){alert(`${emp.name} is not available for this shift.`);return}
+    if(avail.length && !avail.includes(di+'_'+sid)){alert(emp.name+' is not available for this shift.');return}
     const projected=getEmployeeWeeklyHours(empId,D.weekOffset,key)+shiftDurationHours(sid);
-    if(projected>(emp.maxHours||40)){alert(`${emp.name} would exceed the weekly max hours (${emp.maxHours||40}h).`);return}
-    assigned=[...assigned,empId];el.classList.add('sel');
+    if(projected>(emp.maxHours||40)){alert(emp.name+' would exceed the weekly max hours ('+(emp.maxHours||40)+'h).');return}
+    assigned=[...assigned,{empId,role}];
+    el.classList.add('sel');
   }
-  D.schedule[key]=assigned;save();
-  const newCount=assigned.filter(eid=>{const emp=D.employees.find(x=>x.id===eid);return emp&&(emp.primaryRole===role||(emp.skills||[]).includes(role))}).length;
-  const grid=document.getElementById('etog-grid');
-  grid.querySelectorAll(`.etog[data-role="${encodeURIComponent(role)}"]`).forEach(t=>{if(!t.classList.contains('sel'))t.classList.toggle('dis',newCount>=limit)});
-  const lblEl=document.getElementById('lbl-'+role.replace(/\s/g,'_'));
-  if(lblEl)lblEl.innerHTML=`${role} <span style="font-weight:400;color:#bbb">(need ${limit} · assigned ${newCount})</span>`;
+  setAssigned(D.weekOffset,di,sid,assigned);
+  save();
+  refreshCellModalState(sid,di);
 }
-
-function saveCellModal(di,sid){save();closeModal();renderSchedule()}
-function clearCell(di,sid){D.schedule[schedKey(D.weekOffset,di,sid)]=[];save();closeModal();renderSchedule()}
+function refreshCellModalState(sid,di){
+  const assigned=getAssigned(D.weekOffset,di,sid);
+  const grid=document.getElementById('etog-grid');
+  if(!grid)return;
+  D.roles.forEach(role=>{
+    const limit=neededForRole(sid,di,role);
+    const newCount=assigned.filter(a=>a.role===role).length;
+    const lblEl=document.getElementById('lbl-'+role.replace(/\s/g,'_'));
+    if(lblEl)lblEl.innerHTML=`${role} <span style="font-weight:500;color:#b0b7c4">(need ${limit} · assigned ${newCount})</span>`;
+    grid.querySelectorAll(`.etog[data-role="${encodeURIComponent(role)}"]`).forEach(t=>{
+      const empId=t.dataset.id;
+      const isSel=assigned.some(a=>a.empId===empId && a.role===role);
+      const takenOther=assigned.some(a=>a.empId===empId && a.role!==role);
+      t.classList.toggle('sel',isSel);
+      t.classList.toggle('dis', (!isSel && newCount>=limit) || takenOther);
+    });
+  });
+}
+function saveCellModal(di,sid){save();closeModal();renderSchedule();if(document.getElementById('page-employees').classList.contains('active'))renderEmployees()}
+function clearCell(di,sid){setAssigned(D.weekOffset,di,sid,[]);save();closeModal();renderSchedule();if(document.getElementById('page-employees').classList.contains('active'))renderEmployees()}
 function closeModal(){document.getElementById('modal-root').innerHTML=''}
 function changeWeek(dir){D.weekOffset+=dir;save();renderSchedule();if(document.getElementById('page-employees').classList.contains('active'))renderEmployees()}
 
-// ── Employees ──
+/* Employees */
 function formatHoursLabel(hours){
   const rounded=Math.round(hours*100)/100;
   return Number.isInteger(rounded)?String(rounded):rounded.toFixed(1).replace(/\.0$/,'');
 }
-
+function availabilityToText(e){
+  const avail=e.availability||[];
+  return avail.length
+    ? avail.map(k=>{const[di,sid]=k.split('_');const sh=D.shifts.find(s=>s.id===sid);return`${DAYS[di]} ${sh?sh.name:''}`}).join(', ')
+    : 'All shifts';
+}
 function renderEmployees(){
   const weekLabel=D.weekOffset===0?'this week':D.weekOffset<0?`${-D.weekOffset} week${D.weekOffset===-1?'':'s'} ago`:`in ${D.weekOffset} week${D.weekOffset===1?'':'s'}`;
   document.getElementById('emp-count').textContent=`${D.employees.length} employee${D.employees.length!==1?'s':''} · scheduled hours ${weekLabel}`;
   const c=document.getElementById('emp-list');
-  if(!D.employees.length){c.innerHTML='<div style="color:#aaa;font-size:13px;padding:12px 0">No employees yet. Click "+ Add Employee" to get started.</div>';return}
-  c.innerHTML=D.employees.map((e,i)=>{
-    const avail=e.availability||[];
-    const availText=avail.length?avail.map(k=>{const[di,sid]=k.split('_');const sh=D.shifts.find(s=>s.id===sid);return`${DAYS[di]} ${sh?sh.name:''}`}).join(', '):'All shifts';
+  if(!D.employees.length){c.innerHTML='<div style="color:#8d95a5;font-size:13px;padding:12px 0">No employees yet. Click "+ Add Employee" to get started.</div>';return}
+  c.innerHTML=`<div class="emp-grid">`+D.employees.map((e,i)=>{
     const skills=(e.skills||[]).filter(s=>s!==e.primaryRole);
     const scheduledHours=getEmployeeWeeklyHours(e.id,D.weekOffset);
     const maxHours=e.maxHours||40;
     const remainingHours=Math.max(0,maxHours-scheduledHours);
     return`<div class="emp-card">
-      <div class="emp-av">${e.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
-      <div class="emp-info">
-        <div class="emp-nm">${e.name}</div>
-        <div class="emp-det">Seniority: ${e.seniority||0} yr${(e.seniority||0)!==1?'s':''} &nbsp;·&nbsp; Max ${maxHours} hrs/week &nbsp;·&nbsp; Scheduled: ${formatHoursLabel(scheduledHours)} hrs &nbsp;·&nbsp; Remaining: ${formatHoursLabel(remainingHours)} hrs</div>
-        <div class="emp-meta">
-          <span class="ebadge eb-role">${e.primaryRole}</span>
-          ${skills.map(s=>`<span class="ebadge eb-sk">${s}</span>`).join('')}
-          <span class="ebadge eb-av">Available: ${availText}</span>
+      <div class="emp-top">
+        <div class="emp-av">${e.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+        <div class="emp-info">
+          <div class="emp-nm">${e.name}</div>
+          <div class="emp-det">Seniority: ${e.seniority||0} yr${(e.seniority||0)!==1?'s':''} · Max ${maxHours} hrs/week<br>Scheduled: ${formatHoursLabel(scheduledHours)} hrs · Remaining: ${formatHoursLabel(remainingHours)} hrs</div>
+          <div class="emp-meta">
+            <span class="ebadge eb-role">${e.primaryRole}</span>
+            ${skills.map(s=>`<span class="ebadge eb-sk">${s}</span>`).join('')}
+            <span class="ebadge eb-av">${availabilityToText(e)}</span>
+          </div>
+          <div class="emp-actions">
+            <button class="btn btn-sm" onclick="openEditEmpModal(${i})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="removeEmployee(${i})">Remove</button>
+          </div>
         </div>
       </div>
-      <button class="btn btn-sm btn-danger" onclick="removeEmployee(${i})" style="flex-shrink:0">Remove</button>
     </div>`;
-  }).join('');
+  }).join('')+`</div>`;
 }
-
-function openAddEmpModal(){
-  const roleOpts=D.roles.map(r=>`<option>${r}</option>`).join('');
-  // Build availability grid: per open day, per shift
+function buildAvailabilityPicker(selected=[]){
   let availHtml='<div class="avail-section">';
   DAYS.forEach((day,di)=>{
     if(isDayClosed(di))return;
     availHtml+=`<div class="avail-day-block"><div class="avail-day-name">${day}</div><div class="avail-shift-row">`;
     D.shifts.forEach(sh=>{
       const key=di+'_'+sh.id;
-      availHtml+=`<div class="avail-slot off" data-key="${key}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${sh.name}</div>`;
+      const on=selected.includes(key);
+      availHtml+=`<div class="avail-slot ${on?'on':'off'}" data-key="${key}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${sh.name}</div>`;
     });
     availHtml+='</div></div>';
   });
   availHtml+='</div>';
-
-  const skToggs=D.roles.map(r=>`<div class="avail-slot off" data-sk="${r}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${r}</div>`).join('');
-
+  return availHtml;
+}
+function buildSkillPicker(selected=[]){
+  return D.roles.map(r=>`<div class="avail-slot ${selected.includes(r)?'on':'off'}" data-sk="${r}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${r}</div>`).join('');
+}
+function openAddEmpModal(){
+  const roleOpts=D.roles.map(r=>`<option>${r}</option>`).join('');
   document.getElementById('modal-root').innerHTML=`<div class="modal-ov" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-t">Add Employee</div>
-      <div class="modal-s">Enter employee details and availability.</div>
+      <div class="modal-s">Create a staff card and define availability.</div>
       <div class="g2">
         <div><div class="fl">Full Name</div><input class="fi" id="ne-name" placeholder="Jane Smith"></div>
         <div><div class="fl">Primary Role</div><select class="fi" id="ne-role">${roleOpts}</select></div>
@@ -1045,9 +1399,9 @@ function openAddEmpModal(){
         <div><div class="fl">Max Hours / Week</div><input class="fi" id="ne-hrs" type="number" min="1" max="80" placeholder="40"></div>
       </div>
       <div class="fl">Availability (select which shifts they can work)</div>
-      ${availHtml}
+      ${buildAvailabilityPicker([])}
       <div class="fl">Also qualified for</div>
-      <div class="avail-shift-row" id="skill-grid">${skToggs}</div>
+      <div class="avail-shift-row" id="skill-grid">${buildSkillPicker([])}</div>
       <div class="modal-act">
         <button class="btn btn-primary" onclick="confirmAddEmp()">Add Employee</button>
         <button class="btn" onclick="closeModal()">Cancel</button>
@@ -1056,7 +1410,6 @@ function openAddEmpModal(){
   </div>`;
   document.getElementById('ne-name').focus();
 }
-
 function confirmAddEmp(){
   const name=document.getElementById('ne-name').value.trim();
   if(!name){alert('Please enter employee name.');return}
@@ -1064,23 +1417,78 @@ function confirmAddEmp(){
   const seniority=parseInt(document.getElementById('ne-sen').value)||0;
   const maxHours=parseInt(document.getElementById('ne-hrs').value)||40;
   const availability=Array.from(document.querySelectorAll('.avail-slot.on[data-key]')).map(el=>el.dataset.key);
-  const skills=Array.from(document.querySelectorAll('#skill-grid .avail-slot.on')).map(el=>el.dataset.sk);
-  D.employees.push({id:'emp'+Date.now(),name,primaryRole:role,seniority,maxHours,availability,skills});
-  save();closeModal();renderEmployees();
+  const skills=Array.from(document.querySelectorAll('#skill-grid .avail-slot.on')).map(el=>el.dataset.sk).filter(s=>s!==role);
+  D.employees.push({id:'emp'+Date.now()+Math.random(),name,primaryRole:role,seniority,maxHours,availability,skills});
+  save();closeModal();renderEmployees();renderSchedule();
 }
-
+function openEditEmpModal(i){
+  const e=D.employees[i];
+  const roleOpts=D.roles.map(r=>`<option ${r===e.primaryRole?'selected':''}>${r}</option>`).join('');
+  document.getElementById('modal-root').innerHTML=`<div class="modal-ov" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-t">Edit Employee</div>
+      <div class="modal-s">Update the card. Existing schedule entries stay linked to this employee.</div>
+      <div class="g2">
+        <div><div class="fl">Full Name</div><input class="fi" id="ee-name" value="${e.name}"></div>
+        <div><div class="fl">Primary Role</div><select class="fi" id="ee-role">${roleOpts}</select></div>
+      </div>
+      <div class="g2">
+        <div><div class="fl">Seniority (years)</div><input class="fi" id="ee-sen" type="number" min="0" max="50" value="${e.seniority||0}"></div>
+        <div><div class="fl">Max Hours / Week</div><input class="fi" id="ee-hrs" type="number" min="1" max="80" value="${e.maxHours||40}"></div>
+      </div>
+      <div class="fl">Availability</div>
+      ${buildAvailabilityPicker(e.availability||[])}
+      <div class="fl">Also qualified for</div>
+      <div class="avail-shift-row" id="skill-grid">${buildSkillPicker(e.skills||[])}</div>
+      <div class="modal-act">
+        <button class="btn btn-primary" onclick="saveEditEmp(${i})">Save Changes</button>
+        <button class="btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+function saveEditEmp(i){
+  const e=D.employees[i];
+  const name=document.getElementById('ee-name').value.trim();
+  if(!name){alert('Please enter employee name.');return}
+  const role=document.getElementById('ee-role').value;
+  const seniority=parseInt(document.getElementById('ee-sen').value)||0;
+  const maxHours=parseInt(document.getElementById('ee-hrs').value)||40;
+  const availability=Array.from(document.querySelectorAll('.avail-slot.on[data-key]')).map(el=>el.dataset.key);
+  const skills=Array.from(document.querySelectorAll('#skill-grid .avail-slot.on')).map(el=>el.dataset.sk).filter(s=>s!==role);
+  D.employees[i]={...e,name,primaryRole:role,seniority,maxHours,availability,skills};
+  // update schedule roles if this employee was previously assigned under old primary role but item role now invalid can remain;
+  // keep explicit assigned role values. That is safer for historical schedule integrity.
+  save();
+  closeModal();
+  renderEmployees();
+  renderSchedule();
+}
 function removeEmployee(i){
-  if(confirm(`Remove ${D.employees[i].name}?`)){D.employees.splice(i,1);save();renderEmployees()}
+  const emp=D.employees[i];
+  if(Object.values(D.schedule).some(arr=>(arr||[]).some(a=>typeof a==='string'?a===emp.id:a.empId===emp.id))){
+    const ok=confirm(`Remove ${emp.name}? This will also clear their schedule assignments.`);
+    if(!ok)return;
+    Object.keys(D.schedule).forEach(key=>{
+      D.schedule[key]=(D.schedule[key]||[]).filter(a=>typeof a==='string'?a!==emp.id:a.empId!==emp.id);
+    });
+  } else {
+    if(!confirm(`Remove ${emp.name}?`))return;
+  }
+  D.employees.splice(i,1);
+  save();
+  renderEmployees();
+  renderSchedule();
 }
 
-// ── Staffing page ──
+/* Staffing page */
 function renderStaffingPage(){
   const c=document.getElementById('staffing-content');
-  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#aaa;font-size:13px">No shifts or roles configured yet.</p>';return}
+  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#8d95a5;font-size:13px">No shifts or roles configured yet.</p>';return}
   ensureStaffingDefaults();
   let html='';
   D.shifts.forEach(sh=>{
-    html+=`<div class="card"><div class="card-t">${sh.name} <span style="font-size:12px;color:#aaa;font-weight:400">${sh.start} — ${sh.end}</span></div>
+    html+=`<div class="card"><div class="card-t">${sh.name} <span style="font-size:12px;color:#9ea5b3;font-weight:500">${sh.start} — ${sh.end}</span></div>
     <div style="margin-top:12px"><table class="stf-tbl"><thead><tr><th>Role</th><th><span class="wd-badge">Weekday</span></th><th><span class="we-badge">Weekend</span></th></tr></thead><tbody>`;
     D.roles.forEach(role=>{
       const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
@@ -1094,7 +1502,7 @@ function renderStaffingPage(){
   c.innerHTML=html;
 }
 
-// ── Shifts page ──
+/* Shifts page */
 function renderShiftsPage(){
   const c=document.getElementById('shifts-content');c.innerHTML='';
   D.shifts.forEach((sh,i)=>{
@@ -1104,15 +1512,17 @@ function renderShiftsPage(){
       <input class="sh-inp" style="width:72px" value="${sh.start}" onchange="D.shifts[${i}].start=this.value;save()">
       <span style="color:#aaa;font-size:13px">—</span>
       <input class="sh-inp" style="width:72px" value="${sh.end}" onchange="D.shifts[${i}].end=this.value;save()">
-      <button class="btn btn-sm btn-danger" onclick="D.shifts.splice(${i},1);save();renderShiftsPage()" style="margin-left:auto">Remove</button>`;
+      <button class="btn btn-sm btn-danger" onclick="removeShift('${sh.id}')" style="margin-left:auto">Remove</button>`;
     c.appendChild(d);
   });
 }
 
-// ── Operating Hours page ──
+/* Hours page */
 function renderHoursPage(){
   const c=document.getElementById('hours-content');
-  if(!D.restaurant.hours){const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:false}});D.restaurant.hours=h}
+  if(!D.restaurant.hours){
+    const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:false}});D.restaurant.hours=h
+  }
   c.innerHTML='';
   DAYS.forEach((day,i)=>{
     const dh=D.restaurant.hours[i]||{open:'09:00',close:'22:00',closed:false};
@@ -1121,7 +1531,7 @@ function renderHoursPage(){
     row.innerHTML=`
       <div class="day-name">${day}</div>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#888;margin-right:8px;user-select:none">
-        <input type="checkbox" id="ph-closed-${i}" ${dh.closed?'checked':''} onchange="updateHour(${i},'closed',this.checked);renderHoursPage()"> Closed
+        <input type="checkbox" id="ph-closed-${i}" ${dh.closed?'checked':''} onchange="updateHour(${i},'closed',this.checked);renderHoursPage();renderSchedule()"> Closed
       </label>
       <div style="display:flex;align-items:center;gap:6px;${dh.closed?'opacity:.3;pointer-events:none':''}">
         <input class="time-inp" value="${dh.open}" onchange="updateHour(${i},'open',this.value)" ${dh.closed?'disabled':''}>
@@ -1132,12 +1542,16 @@ function renderHoursPage(){
   });
 }
 
-// ── AI Chat ──
+/* AI Chat */
 let chatOpen=false;
 function toggleChat(){
   chatOpen=!chatOpen;
   document.getElementById('chat-win').classList.toggle('open',chatOpen);
-  if(chatOpen){document.getElementById('fab-unread').style.display='none';document.getElementById('chat-msgs').scrollTop=99999;document.getElementById('chat-inp').focus()}
+  if(chatOpen){
+    document.getElementById('fab-unread').style.display='none';
+    document.getElementById('chat-msgs').scrollTop=99999;
+    document.getElementById('chat-inp').focus()
+  }
 }
 function appendBubble(type,text){
   const c=document.getElementById('chat-msgs');
@@ -1148,20 +1562,18 @@ function addChat(type,text){
   D.chatHistory.push({type,text});
   if(D.chatHistory.length>60)D.chatHistory=D.chatHistory.slice(-60);
   save();
-  const el=appendBubble(type,text);
-  if(!chatOpen&&type==='bot'){const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!'}
-  return el;
+  appendBubble(type,text);
+  if(!chatOpen&&type==='bot'){
+    const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!';
+  }
 }
-function saveApiKey(val){D.apiKey=val.trim();save()}
-
 function buildMockAssistantReply(msg){
   const lower=msg.toLowerCase();
-  if(/swap|switch/.test(lower))return 'Got it. I noted this as a shift swap request. In the full version, this will be passed to your scheduling engine, checked for feasibility, and then returned as a proposed update.';
-  if(/assign|put|schedule|add/.test(lower))return 'Understood. I recorded this as a scheduling request. In the integrated version, I will send it to the scheduling engine, check availability and staffing rules, and then show the proposed roster change.';
-  if(/clear|remove|unassign|cancel/.test(lower))return 'Noted. I treated this as a removal request. In the full workflow, I will clear the assignment, validate coverage, and suggest a replacement if the shift becomes understaffed.';
-  return 'Message received. For this demo, I am returning a placeholder response. Once your scheduling engine is connected, I will translate this request into a structured scheduling action and return the proposed update here.';
+  if(/swap|switch/.test(lower))return 'Got it. I logged this as a shift swap request. Once your scheduling engine is connected, this can be validated and proposed automatically.';
+  if(/assign|put|schedule|add/.test(lower))return 'Understood. I treated this as a scheduling request. In the full version, this will be checked against availability, max hours, and staffing rules.';
+  if(/clear|remove|unassign|cancel/.test(lower))return 'Noted. I treated this as a removal request. In the integrated version, the system can also suggest a replacement if the shift becomes understaffed.';
+  return 'Message received. This demo returns a placeholder response for now, but the UI is ready for your scheduling engine later.';
 }
-
 async function sendChat(){
   const inp=document.getElementById('chat-inp');
   const msg=inp.value.trim();if(!msg)return;
@@ -1173,7 +1585,7 @@ async function sendChat(){
   },550);
 }
 
-// ── Boot ──
+/* Boot */
 loadSess();
 if(CE&&D){enterApp()}else{document.getElementById('auth-screen').style.display='flex'}
 </script>
