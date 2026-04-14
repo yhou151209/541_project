@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShiftSync</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f7f7f7;color:#111}
+input,select,textarea,button{font-family:inherit}
+
+/* ── Core layout ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.topbar{background:#111;padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-right{display:flex;align-items:center;gap:12px;position:relative}
+.topbar-rest{color:#888;font-size:13px}
+.av-btn{width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#111;font-size:11px;font-weight:700;cursor:pointer;border:none}
+.av-btn:hover{background:#e0e0e0}
+.av-dd{position:absolute;top:44px;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.12);min-width:190px;z-index:999;overflow:hidden;display:none}
+.av-dd.open{display:block}
+.dd-hdr{padding:12px 14px;border-bottom:1px solid #f0f0f0}
+.dd-name{font-size:13px;font-weight:600}
+.dd-email{font-size:11px;color:#aaa;margin-top:1px}
+.dd-item{padding:9px 14px;font-size:13px;cursor:pointer;color:#444;transition:background .1s}
+.dd-item:hover{background:#f7f7f7}
+.dd-item.danger{color:#c00}
+.dd-item.danger:hover{background:#fff5f5}
+.dd-div{border-top:1px solid #f0f0f0}
+.body{display:flex;flex:1;overflow:hidden}
+.sidebar{width:188px;background:#fff;border-right:1px solid #e8e8e8;padding:12px 0;flex-shrink:0;display:flex;flex-direction:column}
+.nav-item{padding:9px 16px;font-size:13px;color:#666;cursor:pointer;display:flex;align-items:center;gap:9px;border-left:2px solid transparent;transition:all .1s}
+.nav-item:hover{background:#f7f7f7;color:#111}
+.nav-item.active{color:#111;background:#f0f0f0;border-left-color:#111;font-weight:600}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.content-area{flex:1;overflow-y:auto;padding:28px 28px 80px}
+.page{display:none}
+.page.active{display:block}
+
+/* ── Auth ── */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f7f7}
+.auth-card{background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:36px 40px;width:400px;max-width:94vw}
+.auth-logo{font-size:24px;font-weight:800;color:#111;margin-bottom:4px;letter-spacing:-.5px}
+.auth-sub{font-size:13px;color:#888;margin-bottom:28px}
+.auth-switch{text-align:center;font-size:13px;color:#888;margin-top:18px}
+.auth-link{color:#111;cursor:pointer;font-weight:600;text-decoration:underline}
+
+/* ── Setup screen (full page, no sidebar) ── */
+.setup-wrap{min-height:100vh;display:flex;flex-direction:column;background:#f7f7f7}
+.setup-topbar{background:#111;padding:0 24px;height:52px;display:flex;align-items:center;flex-shrink:0}
+.setup-body{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px 80px;overflow-y:auto}
+.setup-inner{width:100%;max-width:600px}
+
+/* ── Buttons ── */
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid #ccc;background:#fff;color:#111;transition:all .15s;font-weight:400}
+.btn:hover{background:#f0f0f0;border-color:#999}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:#111;color:#fff;border-color:#111}
+.btn-primary:hover{background:#333;border-color:#333}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{color:#c00;border-color:#fcc;background:#fff}
+.btn-danger:hover{background:#fff5f5}
+.btn-ghost{border-color:transparent;background:transparent;color:#111}
+.btn-ghost:hover{background:#f0f0f0}
+.btn-full{width:100%;padding:11px;font-size:14px}
+
+/* ── Forms ── */
+.fl{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px}
+.fl:first-child{margin-top:0}
+.fi{width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 12px;font-size:13px;color:#111;transition:border .15s}
+.fi:focus{outline:none;border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.06)}
+select.fi{cursor:pointer}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ── Cards ── */
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:16px 20px;margin-bottom:12px}
+.card-t{font-size:14px;font-weight:600;margin-bottom:2px}
+.card-s{font-size:12px;color:#999}
+
+/* ── Tags ── */
+.tag{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;color:#111;font-size:12px;padding:4px 10px;border-radius:4px;margin:2px;font-weight:500}
+.tag-x{cursor:pointer;opacity:.4;font-size:13px}
+.tag-x:hover{opacity:1}
+.tag-ghost{display:inline-flex;align-items:center;background:transparent;border:1px dashed #ccc;color:#999;font-size:12px;padding:4px 10px;border-radius:4px;margin:2px;cursor:pointer}
+.tag-ghost:hover{border-color:#111;color:#111}
+
+/* ── Day toggles ── */
+.dtog{display:inline-flex;align-items:center;justify-content:center;width:52px;height:36px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #ddd;transition:all .15s;margin:2px;user-select:none;font-weight:500}
+.dtog.on{background:#111;color:#fff;border-color:#111}
+.dtog.off{background:#fff;color:#888}
+
+/* ── Per-day hours ── */
+.day-hours-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5}
+.day-hours-row:last-child{border-bottom:none}
+.day-name{font-size:13px;font-weight:500;width:36px;flex-shrink:0}
+.day-closed{font-size:12px;color:#aaa;margin-left:8px}
+.time-inp{width:80px;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px 8px;font-size:13px;color:#111;text-align:center}
+.time-inp:focus{outline:none;border-color:#111}
+.time-sep{color:#aaa;font-size:12px}
+
+/* ── Setup progress ── */
+.prog-bar{display:flex;margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0}
+.prog-step{flex:1;padding:10px 14px;font-size:12px;background:#fff;color:#bbb;border-right:1px solid #e0e0e0;transition:all .2s}
+.prog-step:last-child{border-right:none}
+.prog-step.done{background:#f0f0f0;color:#444}
+.prog-step.active{background:#111;color:#fff;font-weight:600}
+.prog-n{font-size:10px;display:block;margin-bottom:1px;opacity:.6}
+.prog-step.active .prog-n{opacity:.7}
+
+/* ── Schedule ── */
+.schedule-wrap{overflow-x:auto}
+.sch-tbl{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed}
+.sch-tbl th{font-size:11px;color:#999;padding:8px 4px;text-align:center;font-weight:500;background:#f7f7f7;text-transform:uppercase;letter-spacing:.04em}
+.sch-tbl th.today-h{color:#111;font-weight:700}
+.th-shift{text-align:left;padding-left:4px;width:82px}
+.sch-cell{background:#fff;border-radius:6px;padding:6px 8px;min-height:58px;cursor:pointer;border:1px solid #e8e8e8;transition:all .15s;vertical-align:top}
+.sch-cell:hover{border-color:#999}
+.sch-cell.filled{background:#f0f0f0;border-color:#ccc}
+.sch-cell.filled:hover{background:#e8e8e8;border-color:#999}
+.sch-cell.warn{background:#fff8f0;border-color:#f0c060}
+.sch-cell.warn:hover{background:#fff0e0}
+.cell-rl{font-size:9px;color:#555;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.cell-np{display:inline-block;background:#111;color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin:1px 1px 0 0}
+.cell-hint{font-size:10px;color:#ccc;padding-top:4px}
+.cell-wl{font-size:10px;color:#c07000;font-weight:600;margin-top:3px}
+.shift-lbl{font-size:12px;font-weight:600;color:#111}
+.shift-tlbl{font-size:10px;color:#aaa;margin-top:1px}
+.rest-cell{background:#f7f7f7;border-radius:6px;min-height:58px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc;border:1px dashed #e0e0e0}
+
+/* ── Week nav ── */
+.top-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.week-nav{display:flex;align-items:center;gap:8px}
+.wk-btn{width:30px;height:30px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#555}
+.wk-btn:hover{background:#f0f0f0}
+.wk-lbl{font-size:13px;color:#555;min-width:64px;text-align:center}
+
+/* ── Staffing table ── */
+.stf-tbl{width:100%;border-collapse:collapse}
+.stf-tbl th{font-size:11px;color:#999;text-align:center;padding:8px 6px;border-bottom:1px solid #e8e8e8;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.stf-tbl th:first-child{text-align:left}
+.stf-tbl td{padding:8px 6px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle}
+.stf-tbl td:first-child{text-align:left;font-size:13px;font-weight:500}
+.num-inp{width:52px;text-align:center;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px;font-size:13px;color:#111}
+.num-inp:focus{outline:none;border-color:#111}
+.wd-badge{display:inline-block;background:#f0f0f0;color:#333;font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600}
+.we-badge{display:inline-block;background:#111;color:#fff;font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600}
+
+/* ── Employees ── */
+.emp-card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:flex-start;gap:14px;transition:border-color .15s}
+.emp-card:hover{border-color:#999}
+.emp-av{width:40px;height:40px;border-radius:50%;background:#111;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.emp-info{flex:1;min-width:0}
+.emp-nm{font-size:14px;font-weight:600;margin-bottom:2px}
+.emp-det{font-size:11px;color:#aaa;margin-top:2px}
+.emp-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.ebadge{font-size:11px;padding:2px 8px;border-radius:3px;font-weight:500}
+.eb-role{background:#111;color:#fff}
+.eb-av{background:#f0f0f0;color:#444}
+.eb-sk{background:#f7f7f7;color:#666;border:1px solid #e0e0e0}
+
+/* ── Toggle grid ── */
+.etog-grid{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.rgroup-lbl{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:4px 0 2px;border-top:1px solid #f0f0f0;margin-top:4px}
+.rgroup-lbl:first-child{border-top:none;margin-top:0}
+.etog-row{display:flex;flex-wrap:wrap;gap:5px}
+.etog{padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer;border:1px solid #ddd;background:#fff;color:#444;transition:all .15s;user-select:none;font-weight:500}
+.etog:hover{border-color:#111;color:#111}
+.etog.sel{background:#111;color:#fff;border-color:#111}
+.etog.dis{opacity:.3;cursor:not-allowed}
+
+/* ── Availability (per shift per day) ── */
+.avail-section{margin-top:4px}
+.avail-day-block{margin-bottom:10px}
+.avail-day-name{font-size:11px;font-weight:600;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.avail-shift-row{display:flex;flex-wrap:wrap;gap:4px}
+.avail-slot{padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid #ddd;background:#fff;color:#666;transition:all .15s;user-select:none}
+.avail-slot:hover{border-color:#111;color:#111}
+.avail-slot.on{background:#111;color:#fff;border-color:#111}
+
+/* ── Shift edit ── */
+.sh-row{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border:1px solid #e8e8e8;border-radius:8px;margin-bottom:8px}
+.sh-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#111}
+.sh-inp{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:5px 9px;font-size:13px;color:#111}
+.sh-inp:focus{outline:none;border-color:#111}
+
+/* ── Section ── */
+.sec-t{font-size:20px;font-weight:700;color:#111;margin-bottom:4px;letter-spacing:-.3px}
+.sec-s{font-size:13px;color:#999;margin-bottom:20px}
+
+/* ── CSV upload area ── */
+.upload-choice{display:flex;flex-direction:column;gap:12px;margin:20px 0}
+.choice-card{border:1px solid #e0e0e0;border-radius:10px;padding:20px;background:#fff;cursor:pointer;transition:all .15s;text-align:center}
+.choice-card:hover{border-color:#111}
+.choice-card.selected{border-color:#111;border-width:2px}
+.choice-icon{font-size:28px;margin-bottom:8px}
+.choice-title{font-size:14px;font-weight:600;margin-bottom:3px}
+.choice-sub{font-size:12px;color:#999}
+.csv-drop{border:2px dashed #ddd;border-radius:10px;padding:32px;text-align:center;margin-top:12px;cursor:pointer;transition:all .15s}
+.csv-drop:hover{border-color:#111;background:#f7f7f7}
+.csv-drop-icon{font-size:32px;margin-bottom:8px}
+.csv-drop-text{font-size:13px;color:#888}
+.csv-drop-sub{font-size:11px;color:#ccc;margin-top:4px}
+
+/* ── AI Chat FAB ── */
+.chat-fab{position:fixed;bottom:28px;right:28px;z-index:900}
+.fab-btn{width:52px;height:52px;border-radius:50%;background:#111;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:all .2s;color:#fff;font-size:20px;position:relative}
+.fab-btn:hover{background:#333;transform:scale(1.06)}
+.fab-unread{position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:#c00;border-radius:50%;font-size:9px;color:#fff;display:none;align-items:center;justify-content:center;font-weight:700}
+.chat-win{position:fixed;bottom:92px;right:28px;width:340px;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid #e0e0e0;z-index:900;display:none;flex-direction:column;overflow:hidden;max-height:460px}
+.chat-win.open{display:flex}
+.chat-win-hdr{background:#111;padding:13px 16px;display:flex;align-items:center;gap:10px}
+.chat-win-title{color:#fff;font-size:13px;font-weight:600;flex:1}
+.chat-win-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4)}
+.chat-win-close{color:rgba(255,255,255,.6);cursor:pointer;font-size:18px;line-height:1}
+.chat-win-close:hover{color:#fff}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.cb{border-radius:8px;padding:9px 12px;font-size:12px;max-width:85%;line-height:1.55;word-break:break-word;white-space:pre-wrap}
+.cb-bot{background:#f7f7f7;color:#111;align-self:flex-start;border-bottom-left-radius:2px}
+.cb-user{background:#111;color:#fff;align-self:flex-end;border-bottom-right-radius:2px}
+.cb-think{background:#f7f7f7;color:#aaa;align-self:flex-start;font-style:italic}
+.chat-inp-row{border-top:1px solid #f0f0f0;display:flex;gap:8px;padding:10px 12px}
+.chat-txt{flex:1;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:20px;padding:7px 14px;font-size:12px;color:#111;outline:none;transition:border .15s}
+.chat-txt:focus{border-color:#111;background:#fff}
+.chat-snd{width:34px;height:34px;border-radius:50%;background:#111;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-snd:hover{background:#333}
+
+/* ── Modal ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal{background:#fff;border-radius:12px;padding:24px;width:460px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal-t{font-size:16px;font-weight:700;margin-bottom:3px}
+.modal-s{font-size:12px;color:#999;margin-bottom:18px}
+.modal-act{display:flex;gap:8px;margin-top:18px}
+
+/* ── Misc ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+@keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
+.loading::after{content:'.';animation:dots .8s infinite}
+</style>
+</head>
+<body>
+
+<!-- ── AUTH ── -->
+<div id="auth-screen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">ShiftSync</div>
+    <div class="auth-sub" id="auth-sub">Sign in to your account</div>
+    <div id="login-form">
+      <div class="fl">Email</div>
+      <input class="fi" id="l-email" type="email" placeholder="manager@restaurant.com">
+      <div class="fl">Password</div>
+      <input class="fi" id="l-pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 20px">
+        <span style="font-size:12px;color:#aaa;cursor:pointer">Forgot password?</span>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+      <div class="auth-switch">No account? <span class="auth-link" onclick="switchAuth('reg')">Create one</span></div>
+    </div>
+    <div id="reg-form" style="display:none">
+      <div class="g2">
+        <div><div class="fl">First Name</div><input class="fi" id="r-first" placeholder="Jane"></div>
+        <div><div class="fl">Last Name</div><input class="fi" id="r-last" placeholder="Smith"></div>
+      </div>
+      <div class="fl">Email</div>
+      <input class="fi" id="r-email" type="email" placeholder="jane@restaurant.com">
+      <div class="fl">Password</div>
+      <input class="fi" id="r-pw" type="password" placeholder="min. 6 characters" onkeydown="if(event.key==='Enter')doRegister()">
+      <div style="margin-top:20px">
+        <button class="btn btn-primary btn-full" onclick="doRegister()">Create Account</button>
+      </div>
+      <div class="auth-switch">Have an account? <span class="auth-link" onclick="switchAuth('login')">Sign in</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETUP (full page, no sidebar) ── -->
+<div id="setup-screen" style="display:none">
+  <div class="setup-wrap">
+    <div class="setup-topbar"></div>
+    <div class="setup-body">
+      <div class="setup-inner">
+
+        <!-- Step 1 -->
+        <div id="setup-step1">
+          <div class="prog-bar">
+            <div class="prog-step active"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
+            <div class="prog-step"><span class="prog-n">Step 2 / 4</span>Roles & Shifts</div>
+            <div class="prog-step"><span class="prog-n">Step 3 / 4</span>Staffing Rules</div>
+            <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
+          </div>
+          <div class="sec-t">Set up your restaurant</div>
+          <div class="sec-s">This only takes a few minutes and won't be repeated.</div>
+          <div class="fl">Restaurant Name</div>
+          <input class="fi" id="s1-name" placeholder="e.g. The Golden Fork">
+          <div class="fl" style="margin-top:16px">Operating Days & Hours</div>
+          <div class="card" style="margin-top:6px">
+            <div id="s1-day-hours"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button class="btn btn-primary" onclick="setup1Next()">Next →</button>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="setup-step2" style="display:none">
+          <div class="prog-bar">
+            <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
+            <div class="prog-step active"><span class="prog-n">Step 2 / 4</span>Roles & Shifts</div>
+            <div class="prog-step"><span class="prog-n">Step 3 / 4</span>Staffing Rules</div>
+            <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
+          </div>
+          <div class="sec-t">Roles & Shifts</div>
+          <div class="sec-s">Define your job roles and daily shift windows.</div>
+          <div class="card">
+            <div class="card-t">Job Roles</div>
+            <div class="card-s" style="margin-bottom:12px">Employees are assigned to one primary role.</div>
+            <div id="s2-roles"></div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <input class="fi" id="s2-role-inp" placeholder="New role name" style="flex:1" onkeydown="if(event.key==='Enter')addRole()">
+              <button class="btn btn-sm" onclick="addRole()">+ Add</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-t">Shifts</div>
+            <div class="card-s" style="margin-bottom:12px">Name and time window for each shift.</div>
+            <div id="s2-shifts"></div>
+            <button class="btn btn-sm btn-ghost" onclick="addShift();renderShiftsSetup()">+ Add Shift</button>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn" onclick="goSetup(1)">← Back</button>
+            <button class="btn btn-primary" onclick="setup2Next()">Next →</button>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="setup-step3" style="display:none">
+          <div class="prog-bar">
+            <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
+            <div class="prog-step done"><span class="prog-n">Step 2 / 4</span>Roles & Shifts</div>
+            <div class="prog-step active"><span class="prog-n">Step 3 / 4</span>Staffing Rules</div>
+            <div class="prog-step"><span class="prog-n">Step 4 / 4</span>Employees</div>
+          </div>
+          <div class="sec-t">Staffing Requirements</div>
+          <div class="sec-s">Minimum staff per role per shift. Set separately for weekdays and weekends.</div>
+          <div class="card"><div id="s3-table"></div></div>
+          <div style="display:flex;gap:10px">
+            <button class="btn" onclick="goSetup(2)">← Back</button>
+            <button class="btn btn-primary" onclick="setup3Next()">Next →</button>
+          </div>
+        </div>
+
+        <!-- Step 4: Employees -->
+        <div id="setup-step4" style="display:none">
+          <div class="prog-bar">
+            <div class="prog-step done"><span class="prog-n">Step 1 / 4</span>Restaurant Info</div>
+            <div class="prog-step done"><span class="prog-n">Step 2 / 4</span>Roles & Shifts</div>
+            <div class="prog-step done"><span class="prog-n">Step 3 / 4</span>Staffing Rules</div>
+            <div class="prog-step active"><span class="prog-n">Step 4 / 4</span>Employees</div>
+          </div>
+          <div class="sec-t">Add your employees</div>
+          <div class="sec-s">You can import a CSV file or add employees manually later.</div>
+          <div class="upload-choice">
+            <div class="choice-card" id="choice-csv" onclick="selectChoice('csv')">
+              <div class="choice-icon">📄</div>
+              <div class="choice-title">Import CSV</div>
+              <div class="choice-sub">Upload a spreadsheet with employee info</div>
+            </div>
+            <div class="choice-card" id="choice-skip" onclick="selectChoice('skip')">
+              <div class="choice-icon">⏭</div>
+              <div class="choice-title">Skip for now</div>
+              <div class="choice-sub">You can add employees manually from the main dashboard</div>
+            </div>
+          </div>
+          <div id="csv-upload-area" style="display:none">
+            <div class="csv-drop" onclick="document.getElementById('csv-file-inp').click()">
+              <div class="csv-drop-icon">☁️</div>
+              <div class="csv-drop-text">Click to upload or drag & drop</div>
+              <div class="csv-drop-sub">CSV format: Name, Role, Seniority, MaxHours</div>
+              <input type="file" id="csv-file-inp" accept=".csv" style="display:none" onchange="handleCSV(this)">
+            </div>
+            <div id="csv-preview" style="margin-top:12px"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:20px">
+            <button class="btn" onclick="goSetup(3)">← Back</button>
+            <button class="btn btn-primary" id="finish-btn" onclick="finishSetup()">Finish Setup →</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="main-app" class="app" style="display:none">
+  <div class="topbar">
+    <div style="width:32px"></div>
+    <div class="topbar-right">
+      <span class="topbar-rest" id="topbar-rest"></span>
+      <button class="av-btn" id="av-btn" onclick="toggleDd()"><span id="av-init">MG</span></button>
+      <div class="av-dd" id="av-dd">
+        <div class="dd-hdr">
+          <div class="dd-name" id="dd-name"></div>
+          <div class="dd-email" id="dd-email"></div>
+        </div>
+        <div class="dd-item" onclick="switchAccount()">↔ &nbsp;Switch Account</div>
+        <div class="dd-div"></div>
+        <div class="dd-item danger" onclick="doLogout()">→ &nbsp;Log Out</div>
+      </div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="sidebar" id="sidebar">
+      <div style="padding:8px 0;flex:1">
+        <div class="nav-item active" id="nav-schedule" onclick="showPage('schedule')">📅&nbsp; Schedule</div>
+        <div class="nav-item" id="nav-employees" onclick="showPage('employees')">👥&nbsp; Employees</div>
+        <div class="nav-item" id="nav-staffing" onclick="showPage('staffing')">⚙️&nbsp; Staffing Rules</div>
+        <div class="nav-item" id="nav-shifts" onclick="showPage('shifts')">🕐&nbsp; Shifts</div>
+        <div class="nav-item" id="nav-hours" onclick="showPage('hours')">🗓&nbsp; Operating Hours</div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid #f0f0f0">
+        <div style="font-size:10px;color:#aaa;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">AI Assistant Key</div>
+        <input id="api-key-inp" type="password" placeholder="sk-ant-..." style="width:100%;background:#f7f7f7;border:1px solid #e0e0e0;border-radius:5px;padding:6px 10px;font-size:11px;color:#111" oninput="saveApiKey(this.value)">
+        <div style="font-size:10px;color:#ccc;margin-top:4px">console.anthropic.com</div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="content-area">
+
+        <!-- Schedule -->
+        <div class="page active" id="page-schedule">
+          <div class="top-actions">
+            <div>
+              <div class="sec-t">Weekly Schedule</div>
+              <div style="font-size:12px;color:#aaa" id="sch-range"></div>
+            </div>
+            <div class="week-nav">
+              <button class="wk-btn" onclick="changeWeek(-1)">‹</button>
+              <span class="wk-lbl" id="wk-lbl">This Week</span>
+              <button class="wk-btn" onclick="changeWeek(1)">›</button>
+            </div>
+          </div>
+          <div class="schedule-wrap">
+            <table class="sch-tbl" id="sch-tbl"></table>
+          </div>
+        </div>
+
+        <!-- Employees -->
+        <div class="page" id="page-employees">
+          <div class="top-actions">
+            <div>
+              <div class="sec-t">Employees</div>
+              <div style="font-size:12px;color:#aaa" id="emp-count"></div>
+            </div>
+            <button class="btn btn-primary" onclick="openAddEmpModal()">+ Add Employee</button>
+          </div>
+          <div id="emp-list"></div>
+        </div>
+
+        <!-- Staffing Rules -->
+        <div class="page" id="page-staffing">
+          <div class="sec-t">Staffing Rules</div>
+          <div class="sec-s">Minimum staff per role per shift. Weekday and weekend rules are separate.</div>
+          <div id="staffing-content"></div>
+        </div>
+
+        <!-- Shifts -->
+        <div class="page" id="page-shifts">
+          <div class="sec-t">Shift Configuration</div>
+          <div class="sec-s">Edit shift names and hours.</div>
+          <div id="shifts-content"></div>
+          <button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="addShift();renderShiftsPage()">+ Add Shift</button>
+        </div>
+
+        <!-- Operating Hours -->
+        <div class="page" id="page-hours">
+          <div class="sec-t">Operating Hours</div>
+          <div class="sec-s">Set opening and closing times for each day. Toggle a day off to close it.</div>
+          <div class="card" id="hours-content"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+
+<!-- AI Chat FAB -->
+<div class="chat-fab" id="chat-fab" style="display:none">
+  <button class="fab-btn" onclick="toggleChat()" title="AI Assistant">
+    ✦
+    <div class="fab-unread" id="fab-unread"></div>
+  </button>
+</div>
+<div class="chat-win" id="chat-win">
+  <div class="chat-win-hdr">
+    <div class="chat-win-dot"></div>
+    <div class="chat-win-title">AI Scheduling Assistant</div>
+    <span class="chat-win-close" onclick="toggleChat()">✕</span>
+  </div>
+  <div class="chat-msgs" id="chat-msgs"></div>
+  <div class="chat-inp-row">
+    <input class="chat-txt" id="chat-inp" placeholder="e.g. Put Amy on Monday morning..."
+      onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="chat-snd" onclick="sendChat()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M1 7h12M7 1l6 6-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const DAYS_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const WEEKEND=[5,6];
+
+// ── Storage ──
+function getAccounts(){try{return JSON.parse(localStorage.getItem('ss_accounts')||'{}')}catch(e){return{}}}
+function saveAccounts(a){localStorage.setItem('ss_accounts',JSON.stringify(a))}
+function getCurrentUser(){return localStorage.getItem('ss_cur')||null}
+function setCurrentUser(e){localStorage.setItem('ss_cur',e||'')}
+
+function defaultData(name,email){
+  // Default hours: each day has {open, close, closed}
+  const defaultHours={};
+  DAYS.forEach((d,i)=>{defaultHours[i]={open:'09:00',close:'22:00',closed:i===6}});
+  return{name,email,password:'',setup:false,
+    restaurant:{name:'',hours:defaultHours},
+    roles:['Server','Cashier','Cook','Dishwasher','Supervisor'],
+    shifts:[{id:'sh1',name:'Morning',start:'09:00',end:'14:00'},{id:'sh2',name:'Afternoon',start:'13:00',end:'18:00'},{id:'sh3',name:'Evening',start:'17:00',end:'22:00'}],
+    staffing:{},employees:[],schedule:{},weekOffset:0,chatHistory:[],apiKey:''}
+}
+
+let CE=null,D=null;
+function loadSess(){CE=getCurrentUser();if(CE){const a=getAccounts();D=a[CE]||null}}
+function save(){if(CE&&D){const a=getAccounts();a[CE]=D;saveAccounts(a)}}
+
+// ── Auth ──
+function switchAuth(m){
+  document.getElementById('login-form').style.display=m==='login'?'':'none';
+  document.getElementById('reg-form').style.display=m==='reg'?'':'none';
+  document.getElementById('auth-sub').textContent=m==='login'?'Sign in to your account':'Create a new account';
+}
+function doLogin(){
+  const email=document.getElementById('l-email').value.trim().toLowerCase();
+  const pw=document.getElementById('l-pw').value;
+  if(!email||!pw){alert('Please fill in all fields.');return}
+  const a=getAccounts();
+  if(!a[email]){alert('No account found with that email.');return}
+  if(a[email].password!==pw){alert('Incorrect password.');return}
+  setCurrentUser(email);loadSess();enterApp();
+}
+function doRegister(){
+  const first=document.getElementById('r-first').value.trim();
+  const last=document.getElementById('r-last').value.trim();
+  const email=document.getElementById('r-email').value.trim().toLowerCase();
+  const pw=document.getElementById('r-pw').value;
+  if(!first||!last||!email||!pw){alert('Please fill in all fields.');return}
+  if(pw.length<6){alert('Password must be at least 6 characters.');return}
+  const a=getAccounts();
+  if(a[email]){alert('An account with this email already exists.');return}
+  const data=defaultData(first+' '+last,email);data.password=pw;
+  a[email]=data;saveAccounts(a);setCurrentUser(email);loadSess();enterApp();
+}
+function doLogout(){
+  closeDD();setCurrentUser(null);CE=null;D=null;
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('chat-fab').style.display='none';
+  document.getElementById('chat-win').classList.remove('open');
+  chatOpen=false;
+  switchAuth('login');
+  document.getElementById('l-email').value='';
+  document.getElementById('l-pw').value='';
+}
+function switchAccount(){closeDD();doLogout()}
+function toggleDd(){document.getElementById('av-dd').classList.toggle('open')}
+function closeDD(){document.getElementById('av-dd').classList.remove('open')}
+document.addEventListener('click',e=>{if(document.getElementById('av-btn')&&!document.getElementById('av-btn').contains(e.target))closeDD()});
+
+// ── Enter app ──
+function enterApp(){
+  document.getElementById('auth-screen').style.display='none';
+  if(!D.setup){
+    // New account → setup (separate full-page, no sidebar)
+    document.getElementById('main-app').style.display='none';
+    document.getElementById('setup-screen').style.display='block';
+    document.getElementById('chat-fab').style.display='none';
+    goSetup(1);
+  } else {
+    // Returning user → main app
+    document.getElementById('setup-screen').style.display='none';
+    document.getElementById('main-app').style.display='flex';
+    const init=D.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    document.getElementById('av-init').textContent=init;
+    document.getElementById('dd-name').textContent=D.name;
+    document.getElementById('dd-email').textContent=D.email;
+    document.getElementById('topbar-rest').textContent=D.restaurant.name;
+    if(D.apiKey)document.getElementById('api-key-inp').value=D.apiKey;
+    document.getElementById('chat-fab').style.display='block';
+    document.getElementById('chat-msgs').innerHTML='';
+    D.chatHistory.slice(-20).forEach(m=>appendBubble(m.type,m.text));
+    showPage('schedule');
+  }
+}
+
+// ── Setup ──
+function goSetup(n){
+  [1,2,3,4].forEach(i=>{
+    const el=document.getElementById('setup-step'+i);
+    if(el) el.style.display=i===n?'':'none';
+  });
+  if(n===1) renderDayHours();
+  if(n===2){renderRoles();renderShiftsSetup()}
+  if(n===3) renderS3();
+  if(n===4) resetStep4();
+}
+
+// Day hours (step 1)
+function renderDayHours(){
+  const c=document.getElementById('s1-day-hours');
+  if(!D.restaurant.hours){
+    const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:i===6}});
+    D.restaurant.hours=h;
+  }
+  c.innerHTML='';
+  DAYS.forEach((day,i)=>{
+    const dh=D.restaurant.hours[i]||{open:'09:00',close:'22:00',closed:false};
+    const row=document.createElement('div');
+    row.className='day-hours-row';
+    row.innerHTML=`
+      <div class="day-name">${day}</div>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#888;margin-right:8px">
+        <input type="checkbox" id="closed-${i}" ${dh.closed?'checked':''} onchange="toggleDayClosed(${i})"> Closed
+      </label>
+      <div id="hours-fields-${i}" style="display:flex;align-items:center;gap:6px;${dh.closed?'opacity:.3;pointer-events:none':''}">
+        <input class="time-inp" id="open-${i}" value="${dh.open}" onchange="updateHour(${i},'open',this.value)">
+        <span class="time-sep">—</span>
+        <input class="time-inp" id="close-${i}" value="${dh.close}" onchange="updateHour(${i},'close',this.value)">
+      </div>`;
+    c.appendChild(row);
+  });
+}
+function toggleDayClosed(i){
+  const closed=document.getElementById('closed-'+i).checked;
+  D.restaurant.hours[i].closed=closed;
+  const fields=document.getElementById('hours-fields-'+i);
+  fields.style.opacity=closed?'.3':'1';
+  fields.style.pointerEvents=closed?'none':'';
+  save();
+}
+function updateHour(i,type,val){D.restaurant.hours[i][type]=val;save()}
+
+function setup1Next(){
+  const name=document.getElementById('s1-name').value.trim();
+  if(!name){alert('Please enter your restaurant name.');return}
+  D.restaurant.name=name;save();goSetup(2);
+}
+
+// Roles
+function renderRoles(){
+  const c=document.getElementById('s2-roles');c.innerHTML='';
+  D.roles.forEach((r,i)=>{
+    const t=document.createElement('span');t.className='tag';
+    t.innerHTML=r+`<span class="tag-x" onclick="removeRole(${i})">×</span>`;c.appendChild(t);
+  });
+}
+function removeRole(i){D.roles.splice(i,1);renderRoles()}
+function addRole(){
+  const v=document.getElementById('s2-role-inp').value.trim();
+  if(v&&!D.roles.includes(v)){D.roles.push(v);renderRoles();document.getElementById('s2-role-inp').value=''}
+}
+
+// Shifts
+function renderShiftsSetup(){
+  const c=document.getElementById('s2-shifts');c.innerHTML='';
+  D.shifts.forEach((sh,i)=>{
+    const d=document.createElement('div');d.className='sh-row';
+    d.innerHTML=`<div class="sh-dot"></div>
+      <input class="sh-inp" style="width:100px" value="${sh.name}" onchange="D.shifts[${i}].name=this.value;save()">
+      <input class="sh-inp" style="width:68px" value="${sh.start}" onchange="D.shifts[${i}].start=this.value;save()">
+      <span style="color:#aaa;font-size:12px">—</span>
+      <input class="sh-inp" style="width:68px" value="${sh.end}" onchange="D.shifts[${i}].end=this.value;save()">
+      <button class="btn btn-sm btn-danger" onclick="D.shifts.splice(${i},1);save();renderShiftsSetup()" style="margin-left:auto">Remove</button>`;
+    c.appendChild(d);
+  });
+}
+function addShift(){D.shifts.push({id:'sh'+Date.now(),name:'New Shift',start:'08:00',end:'16:00'});save()}
+
+function ensureStaffingDefaults(){
+  if(!D.staffing)D.staffing={};
+  D.roles.forEach(role=>{
+    D.shifts.forEach(sh=>{
+      const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
+      if(D.staffing[kd]===undefined)D.staffing[kd]=1;
+      if(D.staffing[kw]===undefined)D.staffing[kw]=2;
+    });
+  });
+}
+
+// S3 staffing
+function renderS3(){
+  const c=document.getElementById('s3-table');
+  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#aaa;font-size:13px">Set up roles and shifts first.</p>';return}
+  ensureStaffingDefaults();
+  save();
+  let html=`<table class="stf-tbl"><thead><tr><th>Role</th>`;
+  D.shifts.forEach(sh=>{html+=`<th>${sh.name}<div style="font-size:9px;color:#aaa;font-weight:400;text-transform:none;letter-spacing:0">${sh.start}—${sh.end}</div><div style="margin-top:4px"><span class="wd-badge">Weekday</span> <span class="we-badge">Weekend</span></div></th>`});
+  html+='</tr></thead><tbody>';
+  D.roles.forEach(role=>{
+    html+=`<tr><td>${role}</td>`;
+    D.shifts.forEach(sh=>{
+      const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
+      const vd=D.staffing[kd]!==undefined?D.staffing[kd]:1;
+      const vw=D.staffing[kw]!==undefined?D.staffing[kw]:2;
+      html+=`<td style="vertical-align:top;padding-top:10px"><div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+        <input type="number" class="num-inp" min="0" max="30" value="${vd}" onchange="D.staffing['${kd}']=parseInt(this.value)||0;save()">
+        <input type="number" class="num-inp" min="0" max="30" value="${vw}" onchange="D.staffing['${kw}']=parseInt(this.value)||0;save()">
+      </div></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';c.innerHTML=html;
+}
+
+function setup2Next(){
+  if(!D.roles.length){alert('Please add at least one role.');return}
+  if(!D.shifts.length){alert('Please add at least one shift.');return}
+  save();goSetup(3);
+}
+function setup3Next(){save();goSetup(4)}
+
+// Step 4: employee upload
+let csvChoice=null;
+function resetStep4(){csvChoice=null;document.getElementById('csv-upload-area').style.display='none';['choice-csv','choice-skip'].forEach(id=>document.getElementById(id).classList.remove('selected'))}
+function selectChoice(c){
+  csvChoice=c;
+  ['choice-csv','choice-skip'].forEach(id=>document.getElementById(id).classList.remove('selected'));
+  document.getElementById('choice-'+c).classList.add('selected');
+  document.getElementById('csv-upload-area').style.display=c==='csv'?'block':'none';
+}
+
+function handleCSV(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const lines=e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
+    const preview=document.getElementById('csv-preview');
+    const imported=[];
+    // Skip header row if it contains text
+    const startIdx=lines[0].toLowerCase().includes('name')?1:0;
+    lines.slice(startIdx).forEach(line=>{
+      const cols=line.split(',').map(c=>c.trim());
+      if(!cols[0])return;
+      const name=cols[0];
+      const role=cols[1]&&D.roles.includes(cols[1])?cols[1]:D.roles[0];
+      const seniority=parseInt(cols[2])||0;
+      const maxHours=parseInt(cols[3])||40;
+      imported.push({id:'emp'+Date.now()+Math.random(),name,primaryRole:role,seniority,maxHours,availability:[],skills:[]});
+    });
+    preview.innerHTML=`<div style="background:#f7f7f7;border-radius:8px;padding:12px 14px;font-size:12px;color:#555">
+      <strong>${imported.length} employee${imported.length!==1?'s':''} ready to import</strong><br>
+      ${imported.slice(0,3).map(e=>`${e.name} (${e.primaryRole})`).join(', ')}${imported.length>3?` and ${imported.length-3} more...`:''}
+    </div>`;
+    preview.dataset.imported=JSON.stringify(imported);
+  };
+  reader.readAsText(file);
+}
+
+function finishSetup(){
+  ensureStaffingDefaults();
+  // Import CSV employees if chosen
+  const preview=document.getElementById('csv-preview');
+  if(csvChoice==='csv'&&preview.dataset.imported){
+    try{const emps=JSON.parse(preview.dataset.imported);D.employees=[...D.employees,...emps]}catch(e){}
+  }
+  D.setup=true;save();
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('main-app').style.display='flex';
+  const init=D.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('av-init').textContent=init;
+  document.getElementById('dd-name').textContent=D.name;
+  document.getElementById('dd-email').textContent=D.email;
+  document.getElementById('topbar-rest').textContent=D.restaurant.name;
+  if(D.apiKey)document.getElementById('api-key-inp').value=D.apiKey;
+  document.getElementById('chat-fab').style.display='block';
+  addChat('bot',`All set! ${D.restaurant.name} is ready.\n\nTell me what to do, e.g.:\n• "Assign Amy to Monday morning"\n• "Swap Carl and Diana on Wednesday afternoon"\n• "Clear the Friday evening shift"`);
+  showPage('schedule');
+}
+
+// ── Pages ──
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const nav=document.getElementById('nav-'+name);if(nav)nav.classList.add('active');
+  if(name==='schedule')renderSchedule();
+  if(name==='employees')renderEmployees();
+  if(name==='staffing')renderStaffingPage();
+  if(name==='shifts')renderShiftsPage();
+  if(name==='hours')renderHoursPage();
+}
+
+// ── Schedule ──
+function getMonday(offset){const d=new Date(),day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);d.setHours(0,0,0,0);return d}
+function fmtDate(d){return(d.getMonth()+1)+'/'+(d.getDate())}
+function schedKey(wo,di,sid){return`${wo}|${di}|${sid}`}
+function getAssigned(wo,di,sid){return D.schedule[schedKey(wo,di,sid)]||[]}
+function isDayClosed(di){return D.restaurant.hours&&D.restaurant.hours[di]&&D.restaurant.hours[di].closed}
+function neededForRole(sid,di,role){const isWE=WEEKEND.includes(di);return D.staffing[sid+'_'+role+'_'+(isWE?'we':'wd')]||0}
+function neededTotal(sid,di){return D.roles.reduce((s,r)=>s+neededForRole(sid,di,r),0)}
+function shiftDurationHours(sid){
+  const sh=D.shifts.find(s=>s.id===sid);
+  if(!sh)return 0;
+  const [shh,smm]=String(sh.start||'0:0').split(':').map(Number);
+  const [ehh,emm]=String(sh.end||'0:0').split(':').map(Number);
+  let mins=(ehh*60+emm)-(shh*60+smm);
+  if(mins<0)mins+=24*60;
+  return mins/60;
+}
+function getEmployeeWeeklyHours(empId,weekOffset,excludeCellKey=null){
+  let total=0;
+  Object.entries(D.schedule||{}).forEach(([key,empIds])=>{
+    if(!key.startsWith(weekOffset+'|'))return;
+    if(excludeCellKey&&key===excludeCellKey)return;
+    if((empIds||[]).includes(empId)){
+      const sid=key.split('|')[2];
+      total+=shiftDurationHours(sid);
+    }
+  });
+  return total;
+}
+function getEmployeeRoleType(emp,role){
+  if(!emp)return 'none';
+  if(emp.primaryRole===role)return 'primary';
+  if((emp.skills||[]).includes(role))return 'skill';
+  return 'none';
+}
+function getEligibleEmployeesForRole(role,di,sid,key){
+  if(isDayClosed(di))return [];
+  const slotKey=di+'_'+sid;
+  const shiftHours=shiftDurationHours(sid);
+  return D.employees.filter(e=>{
+    const roleType=getEmployeeRoleType(e,role);
+    if(roleType==='none')return false;
+    const avail=e.availability||[];
+    if(avail.length && !avail.includes(slotKey))return false;
+    const weeklyHours=getEmployeeWeeklyHours(e.id,D.weekOffset,key);
+    return weeklyHours + shiftHours <= (e.maxHours||40);
+  }).sort((a,b)=>{
+    const ra=getEmployeeRoleType(a,role)==='primary'?0:1;
+    const rb=getEmployeeRoleType(b,role)==='primary'?0:1;
+    if(ra!==rb)return ra-rb;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function renderSchedule(){
+  const mon=getMonday(D.weekOffset);
+  const sun=new Date(mon);sun.setDate(sun.getDate()+6);
+  document.getElementById('sch-range').textContent=fmtDate(mon)+' — '+fmtDate(sun);
+  document.getElementById('wk-lbl').textContent=D.weekOffset===0?'This Week':D.weekOffset<0?`${-D.weekOffset}w ago`:`+${D.weekOffset}w`;
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayDi=(today.getDay()||7)-1;
+  const tbl=document.getElementById('sch-tbl');
+  let html='<thead><tr><th class="th-shift"></th>';
+  for(let di=0;di<7;di++){
+    const d=new Date(mon);d.setDate(mon.getDate()+di);
+    const isToday=D.weekOffset===0&&di===todayDi;
+    const isClosed=isDayClosed(di);
+    const isWE=WEEKEND.includes(di);
+    const hours=D.restaurant.hours&&D.restaurant.hours[di];
+    html+=`<th class="${isToday?'today-h':''}" style="${isClosed?'opacity:.35':''}">
+      ${DAYS[di]}${isWE?' <span style="font-size:9px;font-weight:700;color:#aaa">WE</span>':''}
+      <br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">${fmtDate(d)}</span>
+      ${hours&&!isClosed?`<br><span style="font-size:9px;color:#ccc;font-weight:400;text-transform:none;letter-spacing:0">${hours.open}–${hours.close}</span>`:''}
+      ${isToday?'<br><span style="font-size:9px;font-weight:700">TODAY</span>':''}
+    </th>`;
+  }
+  html+='</tr></thead><tbody>';
+  D.shifts.forEach(sh=>{
+    html+=`<tr><td style="padding:3px 2px;vertical-align:middle;min-width:82px"><div class="shift-lbl">${sh.name}</div><div class="shift-tlbl">${sh.start}—${sh.end}</div></td>`;
+    for(let di=0;di<7;di++){
+      if(isDayClosed(di)){html+=`<td style="padding:3px"><div class="rest-cell">Closed</div></td>`;continue}
+      const assigned=getAssigned(D.weekOffset,di,sh.id);
+      const needed=neededTotal(sh.id,di);
+      const short=needed-assigned.length;
+      const cls=assigned.length===0?'':short>0?'warn':'filled';
+      html+=`<td style="padding:3px" onclick="openCellModal(${di},'${sh.id}')"><div class="sch-cell ${cls}">`;
+      if(assigned.length===0){html+=`<div class="cell-hint">+ Assign</div>`}
+      else{
+        const byRole={};
+        assigned.forEach(eid=>{const emp=D.employees.find(e=>e.id===eid);if(emp){byRole[emp.primaryRole]=byRole[emp.primaryRole]||[];byRole[emp.primaryRole].push(emp.name)}});
+        Object.entries(byRole).forEach(([role,names])=>{
+          html+=`<div class="cell-rl">${role}</div><div>`;
+          names.forEach(n=>{html+=`<span class="cell-np">${n.split(' ')[0]}</span>`});
+          html+='</div>';
+        });
+        if(short>0)html+=`<div class="cell-wl">⚠ ${short} more needed</div>`;
+      }
+      html+='</div></td>';
+    }
+    html+='</tr>';
+  });
+  html+='</tbody>';tbl.innerHTML=html;
+}
+
+function openCellModal(di,sid){
+  const sh=D.shifts.find(s=>s.id===sid);
+  const assigned=getAssigned(D.weekOffset,di,sid);
+  const isWE=WEEKEND.includes(di);
+  const needed=neededTotal(sh.id,di);
+  const key=schedKey(D.weekOffset,di,sid);
+  let togglesHtml='';
+  D.roles.forEach(role=>{
+    const limit=neededForRole(sid,di,role);
+    const eligible=getEligibleEmployeesForRole(role,di,sid,key);
+    if(!eligible.length)return;
+    const curCount=assigned.filter(eid=>{const emp=D.employees.find(x=>x.id===eid);return emp&&getEmployeeRoleType(emp,role)!=='none'}).length;
+    togglesHtml+=`<div class="rgroup-lbl" id="lbl-${role.replace(/\s/g,'_')}">${role} <span style="font-weight:400;color:#bbb">(need ${limit} · assigned ${curCount})</span></div><div class="etog-row">`;
+    eligible.forEach(e=>{
+      const sel=assigned.includes(e.id);
+      const atLim=!sel&&curCount>=limit;
+      const roleType=getEmployeeRoleType(e,role);
+      const weeklyHours=getEmployeeWeeklyHours(e.id,D.weekOffset,key);
+      const shiftHours=shiftDurationHours(sid);
+      const badge=roleType==='primary'?'P':'S';
+      const title=`${roleType==='primary'?'Primary role':'Qualified skill'} · ${weeklyHours.toFixed(1)}h assigned, ${(weeklyHours+shiftHours).toFixed(1)}h after this shift`;
+      togglesHtml+=`<div class="etog ${sel?'sel':''} ${atLim?'dis':''}" title="${title}" data-id="${e.id}" data-role="${encodeURIComponent(role)}" data-limit="${limit}" onclick="toggleEmp(this,'${sid}',${di})">${e.name.split(' ')[0]} <span style="opacity:.7">${badge}</span></div>`;
+    });
+    togglesHtml+='</div>';
+  });
+  if(!togglesHtml)togglesHtml='<div style="color:#aaa;font-size:13px;padding:8px 0">No eligible employees for this slot.<br>Employees must be available, within max weekly hours, and qualified for the role.</div>';
+  document.getElementById('modal-root').innerHTML=`<div class="modal-ov" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-t">${DAYS_FULL[di]} · ${sh.name}</div>
+      <div class="modal-s">${sh.start}–${sh.end} &nbsp;·&nbsp; ${isWE?'Weekend':'Weekday'} &nbsp;·&nbsp; ${needed} needed total</div>
+      <div class="etog-grid" id="etog-grid">${togglesHtml}</div>
+      <div class="modal-act">
+        <button class="btn btn-primary" onclick="saveCellModal(${di},'${sid}')">Save</button>
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" style="margin-left:auto" onclick="clearCell(${di},'${sid}')">Clear All</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleEmp(el,sid,di){
+  if(el.classList.contains('dis'))return;
+  const empId=el.dataset.id;
+  const role=decodeURIComponent(el.dataset.role);
+  const limit=parseInt(el.dataset.limit);
+  const key=schedKey(D.weekOffset,di,sid);
+  let assigned=D.schedule[key]||[];
+  if(el.classList.contains('sel')){
+    assigned=assigned.filter(id=>id!==empId);el.classList.remove('sel');
+  } else {
+    const emp=D.employees.find(x=>x.id===empId);
+    const curCount=assigned.filter(eid=>{const e=D.employees.find(x=>x.id===eid);return e&&getEmployeeRoleType(e,role)!=='none'}).length;
+    if(curCount>=limit)return;
+    if(!emp)return;
+    if(isDayClosed(di)){alert('This day is closed, so no assignment can be added.');return}
+    const avail=emp.availability||[];
+    if(avail.length && !avail.includes(di+'_'+sid)){alert(`${emp.name} is not available for this shift.`);return}
+    const projected=getEmployeeWeeklyHours(empId,D.weekOffset,key)+shiftDurationHours(sid);
+    if(projected>(emp.maxHours||40)){alert(`${emp.name} would exceed the weekly max hours (${emp.maxHours||40}h).`);return}
+    assigned=[...assigned,empId];el.classList.add('sel');
+  }
+  D.schedule[key]=assigned;save();
+  const newCount=assigned.filter(eid=>{const emp=D.employees.find(x=>x.id===eid);return emp&&(emp.primaryRole===role||(emp.skills||[]).includes(role))}).length;
+  const grid=document.getElementById('etog-grid');
+  grid.querySelectorAll(`.etog[data-role="${encodeURIComponent(role)}"]`).forEach(t=>{if(!t.classList.contains('sel'))t.classList.toggle('dis',newCount>=limit)});
+  const lblEl=document.getElementById('lbl-'+role.replace(/\s/g,'_'));
+  if(lblEl)lblEl.innerHTML=`${role} <span style="font-weight:400;color:#bbb">(need ${limit} · assigned ${newCount})</span>`;
+}
+
+function saveCellModal(di,sid){save();closeModal();renderSchedule()}
+function clearCell(di,sid){D.schedule[schedKey(D.weekOffset,di,sid)]=[];save();closeModal();renderSchedule()}
+function closeModal(){document.getElementById('modal-root').innerHTML=''}
+function changeWeek(dir){D.weekOffset+=dir;save();renderSchedule();if(document.getElementById('page-employees').classList.contains('active'))renderEmployees()}
+
+// ── Employees ──
+function formatHoursLabel(hours){
+  const rounded=Math.round(hours*100)/100;
+  return Number.isInteger(rounded)?String(rounded):rounded.toFixed(1).replace(/\.0$/,'');
+}
+
+function renderEmployees(){
+  const weekLabel=D.weekOffset===0?'this week':D.weekOffset<0?`${-D.weekOffset} week${D.weekOffset===-1?'':'s'} ago`:`in ${D.weekOffset} week${D.weekOffset===1?'':'s'}`;
+  document.getElementById('emp-count').textContent=`${D.employees.length} employee${D.employees.length!==1?'s':''} · scheduled hours ${weekLabel}`;
+  const c=document.getElementById('emp-list');
+  if(!D.employees.length){c.innerHTML='<div style="color:#aaa;font-size:13px;padding:12px 0">No employees yet. Click "+ Add Employee" to get started.</div>';return}
+  c.innerHTML=D.employees.map((e,i)=>{
+    const avail=e.availability||[];
+    const availText=avail.length?avail.map(k=>{const[di,sid]=k.split('_');const sh=D.shifts.find(s=>s.id===sid);return`${DAYS[di]} ${sh?sh.name:''}`}).join(', '):'All shifts';
+    const skills=(e.skills||[]).filter(s=>s!==e.primaryRole);
+    const scheduledHours=getEmployeeWeeklyHours(e.id,D.weekOffset);
+    const maxHours=e.maxHours||40;
+    const remainingHours=Math.max(0,maxHours-scheduledHours);
+    return`<div class="emp-card">
+      <div class="emp-av">${e.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+      <div class="emp-info">
+        <div class="emp-nm">${e.name}</div>
+        <div class="emp-det">Seniority: ${e.seniority||0} yr${(e.seniority||0)!==1?'s':''} &nbsp;·&nbsp; Max ${maxHours} hrs/week &nbsp;·&nbsp; Scheduled: ${formatHoursLabel(scheduledHours)} hrs &nbsp;·&nbsp; Remaining: ${formatHoursLabel(remainingHours)} hrs</div>
+        <div class="emp-meta">
+          <span class="ebadge eb-role">${e.primaryRole}</span>
+          ${skills.map(s=>`<span class="ebadge eb-sk">${s}</span>`).join('')}
+          <span class="ebadge eb-av">Available: ${availText}</span>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="removeEmployee(${i})" style="flex-shrink:0">Remove</button>
+    </div>`;
+  }).join('');
+}
+
+function openAddEmpModal(){
+  const roleOpts=D.roles.map(r=>`<option>${r}</option>`).join('');
+  // Build availability grid: per open day, per shift
+  let availHtml='<div class="avail-section">';
+  DAYS.forEach((day,di)=>{
+    if(isDayClosed(di))return;
+    availHtml+=`<div class="avail-day-block"><div class="avail-day-name">${day}</div><div class="avail-shift-row">`;
+    D.shifts.forEach(sh=>{
+      const key=di+'_'+sh.id;
+      availHtml+=`<div class="avail-slot off" data-key="${key}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${sh.name}</div>`;
+    });
+    availHtml+='</div></div>';
+  });
+  availHtml+='</div>';
+
+  const skToggs=D.roles.map(r=>`<div class="avail-slot off" data-sk="${r}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${r}</div>`).join('');
+
+  document.getElementById('modal-root').innerHTML=`<div class="modal-ov" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-t">Add Employee</div>
+      <div class="modal-s">Enter employee details and availability.</div>
+      <div class="g2">
+        <div><div class="fl">Full Name</div><input class="fi" id="ne-name" placeholder="Jane Smith"></div>
+        <div><div class="fl">Primary Role</div><select class="fi" id="ne-role">${roleOpts}</select></div>
+      </div>
+      <div class="g2">
+        <div><div class="fl">Seniority (years)</div><input class="fi" id="ne-sen" type="number" min="0" max="50" placeholder="0"></div>
+        <div><div class="fl">Max Hours / Week</div><input class="fi" id="ne-hrs" type="number" min="1" max="80" placeholder="40"></div>
+      </div>
+      <div class="fl">Availability (select which shifts they can work)</div>
+      ${availHtml}
+      <div class="fl">Also qualified for</div>
+      <div class="avail-shift-row" id="skill-grid">${skToggs}</div>
+      <div class="modal-act">
+        <button class="btn btn-primary" onclick="confirmAddEmp()">Add Employee</button>
+        <button class="btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('ne-name').focus();
+}
+
+function confirmAddEmp(){
+  const name=document.getElementById('ne-name').value.trim();
+  if(!name){alert('Please enter employee name.');return}
+  const role=document.getElementById('ne-role').value;
+  const seniority=parseInt(document.getElementById('ne-sen').value)||0;
+  const maxHours=parseInt(document.getElementById('ne-hrs').value)||40;
+  const availability=Array.from(document.querySelectorAll('.avail-slot.on[data-key]')).map(el=>el.dataset.key);
+  const skills=Array.from(document.querySelectorAll('#skill-grid .avail-slot.on')).map(el=>el.dataset.sk);
+  D.employees.push({id:'emp'+Date.now(),name,primaryRole:role,seniority,maxHours,availability,skills});
+  save();closeModal();renderEmployees();
+}
+
+function removeEmployee(i){
+  if(confirm(`Remove ${D.employees[i].name}?`)){D.employees.splice(i,1);save();renderEmployees()}
+}
+
+// ── Staffing page ──
+function renderStaffingPage(){
+  const c=document.getElementById('staffing-content');
+  if(!D.shifts.length||!D.roles.length){c.innerHTML='<p style="color:#aaa;font-size:13px">No shifts or roles configured yet.</p>';return}
+  ensureStaffingDefaults();
+  let html='';
+  D.shifts.forEach(sh=>{
+    html+=`<div class="card"><div class="card-t">${sh.name} <span style="font-size:12px;color:#aaa;font-weight:400">${sh.start} — ${sh.end}</span></div>
+    <div style="margin-top:12px"><table class="stf-tbl"><thead><tr><th>Role</th><th><span class="wd-badge">Weekday</span></th><th><span class="we-badge">Weekend</span></th></tr></thead><tbody>`;
+    D.roles.forEach(role=>{
+      const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
+      html+=`<tr><td>${role}</td>
+        <td><input type="number" class="num-inp" min="0" max="30" value="${D.staffing[kd]||0}" onchange="D.staffing['${kd}']=parseInt(this.value)||0;save();renderSchedule()"></td>
+        <td><input type="number" class="num-inp" min="0" max="30" value="${D.staffing[kw]||0}" onchange="D.staffing['${kw}']=parseInt(this.value)||0;save();renderSchedule()"></td>
+      </tr>`;
+    });
+    html+='</tbody></table></div></div>';
+  });
+  c.innerHTML=html;
+}
+
+// ── Shifts page ──
+function renderShiftsPage(){
+  const c=document.getElementById('shifts-content');c.innerHTML='';
+  D.shifts.forEach((sh,i)=>{
+    const d=document.createElement('div');d.className='sh-row';d.style.marginBottom='8px';
+    d.innerHTML=`<div class="sh-dot"></div>
+      <input class="sh-inp" style="width:120px" value="${sh.name}" onchange="D.shifts[${i}].name=this.value;save()">
+      <input class="sh-inp" style="width:72px" value="${sh.start}" onchange="D.shifts[${i}].start=this.value;save()">
+      <span style="color:#aaa;font-size:13px">—</span>
+      <input class="sh-inp" style="width:72px" value="${sh.end}" onchange="D.shifts[${i}].end=this.value;save()">
+      <button class="btn btn-sm btn-danger" onclick="D.shifts.splice(${i},1);save();renderShiftsPage()" style="margin-left:auto">Remove</button>`;
+    c.appendChild(d);
+  });
+}
+
+// ── Operating Hours page ──
+function renderHoursPage(){
+  const c=document.getElementById('hours-content');
+  if(!D.restaurant.hours){const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:false}});D.restaurant.hours=h}
+  c.innerHTML='';
+  DAYS.forEach((day,i)=>{
+    const dh=D.restaurant.hours[i]||{open:'09:00',close:'22:00',closed:false};
+    const row=document.createElement('div');
+    row.className='day-hours-row';
+    row.innerHTML=`
+      <div class="day-name">${day}</div>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#888;margin-right:8px;user-select:none">
+        <input type="checkbox" id="ph-closed-${i}" ${dh.closed?'checked':''} onchange="updateHour(${i},'closed',this.checked);renderHoursPage()"> Closed
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;${dh.closed?'opacity:.3;pointer-events:none':''}">
+        <input class="time-inp" value="${dh.open}" onchange="updateHour(${i},'open',this.value)" ${dh.closed?'disabled':''}>
+        <span class="time-sep">—</span>
+        <input class="time-inp" value="${dh.close}" onchange="updateHour(${i},'close',this.value)" ${dh.closed?'disabled':''}>
+      </div>`;
+    c.appendChild(row);
+  });
+}
+
+// ── AI Chat ──
+let chatOpen=false;
+function toggleChat(){
+  chatOpen=!chatOpen;
+  document.getElementById('chat-win').classList.toggle('open',chatOpen);
+  if(chatOpen){document.getElementById('fab-unread').style.display='none';document.getElementById('chat-msgs').scrollTop=99999;document.getElementById('chat-inp').focus()}
+}
+function appendBubble(type,text){
+  const c=document.getElementById('chat-msgs');
+  const d=document.createElement('div');d.className=`cb cb-${type}`;d.textContent=text;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;return d;
+}
+function addChat(type,text){
+  D.chatHistory.push({type,text});
+  if(D.chatHistory.length>60)D.chatHistory=D.chatHistory.slice(-60);
+  save();
+  const el=appendBubble(type,text);
+  if(!chatOpen&&type==='bot'){const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!'}
+  return el;
+}
+function saveApiKey(val){D.apiKey=val.trim();save()}
+
+function buildMockAssistantReply(msg){
+  const lower=msg.toLowerCase();
+  if(/swap|switch/.test(lower))return 'Got it. I noted this as a shift swap request. In the full version, this will be passed to your scheduling engine, checked for feasibility, and then returned as a proposed update.';
+  if(/assign|put|schedule|add/.test(lower))return 'Understood. I recorded this as a scheduling request. In the integrated version, I will send it to the scheduling engine, check availability and staffing rules, and then show the proposed roster change.';
+  if(/clear|remove|unassign|cancel/.test(lower))return 'Noted. I treated this as a removal request. In the full workflow, I will clear the assignment, validate coverage, and suggest a replacement if the shift becomes understaffed.';
+  return 'Message received. For this demo, I am returning a placeholder response. Once your scheduling engine is connected, I will translate this request into a structured scheduling action and return the proposed update here.';
+}
+
+async function sendChat(){
+  const inp=document.getElementById('chat-inp');
+  const msg=inp.value.trim();if(!msg)return;
+  inp.value='';addChat('user',msg);
+  const thinking=appendBubble('think','');thinking.className='cb cb-think';thinking.innerHTML='<span class="loading">Thinking</span>';
+  setTimeout(()=>{
+    thinking.remove();
+    addChat('bot',buildMockAssistantReply(msg));
+  },550);
+}
+
+// ── Boot ──
+loadSess();
+if(CE&&D){enterApp()}else{document.getElementById('auth-screen').style.display='flex'}
+</script>
+</body>
+</html>
