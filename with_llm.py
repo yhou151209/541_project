@@ -616,28 +616,42 @@ def _validate_change(change: Dict[str, Any], staff_names: List[str]) -> None:
 
     def ck_name(f):
         n = change.get(f, "")
+        if not n:
+            raise ValueError(f"Missing required employee name.")
         if n.lower() not in name_set:
             raise ValueError(f"Employee '{n}' not found in staff list.")
 
-    def ck_day(f):
+    # Added a 'required' parameter that defaults to True
+    def ck_day(f, required=True):
         d = change.get(f)
+        if required and not d:
+            raise ValueError(f"Missing required day information.")
         if d and d not in valid_days:
             raise ValueError(f"Invalid day: '{d}'")
 
-    def ck_shift(f):
+    # Added a 'required' parameter that defaults to True
+    def ck_shift(f, required=True):
         s = change.get(f)
+        if required and not s:
+            raise ValueError(f"Missing required shift information.")
         if s and s not in valid_shifts:
             raise ValueError(f"Invalid shift: '{s}'")
 
     if t == "unavailable":
-        ck_name("employee_name"); ck_day("day"); ck_shift("shift")
+        ck_name("employee_name")
+        ck_day("day") 
+        ck_shift("shift")
     elif t == "direct_swap":
         ck_name("employee_name_1"); ck_name("employee_name_2")
-        ck_day("day_1"); ck_day("day_2"); ck_shift("shift_1"); ck_shift("shift_2")
+        ck_day("day_1"); ck_day("day_2")
+        ck_shift("shift_1"); ck_shift("shift_2")
     elif t == "avoid_back_to_back":
         ck_name("employee_name")
     elif t == "avoid_shift":
-        ck_name("employee_name"); ck_day("day"); ck_shift("shift")
+        ck_name("employee_name")
+        # Day and shift are optional for this specific intent
+        ck_day("day", required=False) 
+        ck_shift("shift", required=False)
 
 
 #  DISPLAY HELPERS
