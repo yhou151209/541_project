@@ -2,14 +2,15 @@
 Restaurant shift scheduling system with natural language input.
 
 Setup:
-    pip install ortools requests
+    pip install ortools requests flask flask-cors
 
-    Get a free Gemini API key at: https://aistudio.google.com/app/apikey
-    Groq: https://console.groq.com/home 
+    Groq API key: https://console.groq.com/home
 
-Run:
-    GEMINI_API_KEY=your-key python3 main.py
-    GEMINI_API_KEY=your-key python3 main.py --data path/to/restaurant_data.json
+Run standalone CLI:
+    GROQ_API_KEY=your-key python3 with_llm.py --data restaurant_data.json
+
+Run as part of the ShiftWhisk web app:
+    Start app.py instead — this module is imported by the Flask backend.
 """
 
 from __future__ import annotations
@@ -52,7 +53,8 @@ def validate_data(data: Dict[str, Any]) -> None:
         raise ValueError(f"Missing top-level keys: {missing}")
 
     for s in data["staff"]:
-        for key in ["id", "name", "skills", "max_shifts", "employment_type"]:
+        # max_hours replaces max_shifts; employment_type is no longer required
+        for key in ["id", "name", "skills", "max_hours"]:
             if key not in s:
                 raise ValueError(f"Staff record missing '{key}': {s}")
 
@@ -74,8 +76,10 @@ def validate_data(data: Dict[str, Any]) -> None:
 #  HELPER UTILITIES
 
 def make_availability_lookup(availability: List[Dict[str, Any]]) -> Dict[Tuple, bool]:
+    # Normalise day and shift to lowercase so matching is case-insensitive
+    # regardless of how the UI or adapter capitalised them.
     return {
-        (row["employee_id"], row["day"], row["shift"]): bool(row["available"])
+        (row["employee_id"], row["day"].lower(), row["shift"].lower()): bool(row["available"])
         for row in availability
     }
 
@@ -175,8 +179,8 @@ def solve_schedule(
         day, shift, role = req["day"], req["shift"], req["role"]
         for emp in staff:
             emp_id = emp["id"]
-            has_skill    = role in set(emp["skills"])
-            is_available = avail_lookup.get((emp_id, day, shift), False)
+            has_skill    = role.lower() in {s.lower() for s in emp["skills"]}
+            is_available = avail_lookup.get((emp_id, day.lower(), shift.lower()), False)
             var = model.NewBoolVar(f"x_{emp_id}_{day}_{shift}_{role}")
             x[(emp_id, day, shift, role)] = var
             if not has_skill or not is_available:
@@ -199,13 +203,18 @@ def solve_schedule(
             if same_shift_vars:
                 model.Add(sum(same_shift_vars) <= 1)
 
-    # Max shifts per employee
+    # Max shifts per employee — derived from max_hours / shift_duration_hours.
+    # shift_duration_hours is stored on each staff record by the adapter.
+    # If missing, fall back to a safe default of 40 hours / 8 hours = 5 shifts.
     max_possible = len(all_day_shift_pairs)
     total_assigned_per_emp: Dict[str, cp_model.IntVar] = {}
     for emp in staff:
         emp_id   = emp["id"]
         emp_vars = [var for key, var in x.items() if key[0] == emp_id]
-        model.Add(sum(emp_vars) <= int(emp["max_shifts"]))
+        shift_hours   = float(emp.get("shift_duration_hours", 8.0))
+        max_hrs       = float(emp.get("max_hours", 40.0))
+        max_shifts_emp = max(1, int(max_hrs / shift_hours)) if shift_hours > 0 else 5
+        model.Add(sum(emp_vars) <= max_shifts_emp)
         total_var = model.NewIntVar(0, max_possible, f"total_{emp_id}")
         model.Add(total_var == sum(emp_vars))
         total_assigned_per_emp[emp_id] = total_var
@@ -263,11 +272,14 @@ def solve_schedule(
                 model.AddBoolOr([m_assigned.Not(), e_assigned.Not()]).OnlyEnforceIf(b2b.Not())
                 penalty_terms.append(b2b * penalty)
 
-    # Busy shift penalty: prefer full-time staff
+    # Busy shift penalty: prefer higher-seniority staff on busy slots.
+    # Without employment_type, we use seniority as a proxy — lower seniority
+    # gets a small penalty on evening / weekend shifts to nudge the solver
+    # toward more experienced staff when possible.
     busy_penalties = [
-        var * 4
+        var * max(1, 4 - int(staff_lookup[emp_id].get("seniority", 0)))
         for (emp_id, day, shift, role), var in x.items()
-        if is_busy_shift(day, shift) and staff_lookup[emp_id]["employment_type"] != "full-time"
+        if is_busy_shift(day, shift) and int(staff_lookup[emp_id].get("seniority", 0)) < 2
     ]
 
     total_penalty = model.NewIntVar(0, 50000, "total_penalty")
@@ -322,11 +334,27 @@ def update_schedule(
 
     if change_type == "unavailable":
         employee_name = change["employee_name"].strip()
-        day, shift    = change["day"].strip(), change["shift"].strip()
-        matched = [s for s in data["staff"] if s["name"].lower() == employee_name.lower()]
+        day           = change["day"].strip()
+        shift         = change.get("shift", "").strip()
+        matched = [s for s in data["staff"] if s["name"].strip().lower() == employee_name.strip().lower()]
         if not matched:
             raise ValueError(f"Employee '{employee_name}' not found.")
-        set_availability(updated_data, matched[0]["id"], day, shift, False)
+        emp_id = matched[0]["id"]
+
+        if shift.lower() == "all" or not shift:
+            # Mark employee unavailable for every shift on this day
+            all_shifts = sorted({r["shift"] for r in data["shift_requirements"]})
+            for sh in all_shifts:
+                set_availability(updated_data, emp_id, day, sh, False)
+        else:
+            # Find the closest matching shift name (case-insensitive substring match)
+            all_shifts = sorted({r["shift"] for r in data["shift_requirements"]})
+            matched_shift = next(
+                (s for s in all_shifts if shift.lower() in s.lower() or s.lower() in shift.lower()),
+                shift  # fall back to whatever the LLM said
+            )
+            set_availability(updated_data, emp_id, day, matched_shift, False)
+
         return solve_schedule(updated_data, preferred_schedule=existing_schedule), updated_data
 
     if change_type == "direct_swap":
@@ -346,9 +374,9 @@ def update_schedule(
         if len(roles_1) != 1 or len(roles_2) != 1:
             raise ValueError("Each employee must have exactly one role in the specified shift.")
         role_1, role_2 = roles_1[0], roles_2[0]
-        if role_2 not in set(emp_1["skills"]):
+        if role_2.lower() not in {s.lower() for s in emp_1["skills"]}:
             raise ValueError(f"{name_1} lacks skill '{role_2}' needed for the swap.")
-        if role_1 not in set(emp_2["skills"]):
+        if role_1.lower() not in {s.lower() for s in emp_2["skills"]}:
             raise ValueError(f"{name_2} lacks skill '{role_1}' needed for the swap.")
         set_availability(updated_data, emp_1["id"], day_2, shift_2, True)
         set_availability(updated_data, emp_2["id"], day_1, shift_1, True)
@@ -465,15 +493,10 @@ def generate_explanation(
     else:
         lines.append("The schedule was updated and re-optimized based on the requested change.")
 
-    full_time_staff = {s["name"] for s in data_before["staff"] if s["employment_type"] == "full-time"}
-    busy_added      = [r for r in added_rows if is_busy_shift(r["day"], r["shift"])]
+    # Note on busy-shift preference: solver prefers senior staff on busy slots.
+    busy_added = [r for r in added_rows if is_busy_shift(r["day"], r["shift"])]
     if busy_added:
-        ft_busy = [r for r in busy_added if r["employee_name"] in full_time_staff]
-        if ft_busy:
-            names = ", ".join(sorted({r["employee_name"] for r in ft_busy}))
-            lines.append(f"Busy shifts prefer full-time staff when possible, which influenced assignments such as {names}.")
-        else:
-            lines.append("Busy shifts prefer full-time staff when possible, but availability and skill constraints still had to be satisfied.")
+        lines.append("Busy shifts prefer senior staff when possible, but availability and skill constraints always take priority.")
 
     if removed_rows or added_rows:
         lines.append("Other assignments were kept unchanged when possible.")
@@ -483,83 +506,95 @@ def generate_explanation(
 
 #  LLM PARSER 
 
-#_GEMINI_MODEL   = "gemini-2.0-flash"
-#_GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
+# ---------------------------------------------------------------------------
+# LLM — Groq backend (Gemini kept as commented-out alternative above)
+# ---------------------------------------------------------------------------
 
 _GROQ_MODEL   = "llama-3.3-70b-versatile"
 _GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# Gemini alternative (uncomment _call_gemini below and swap the reference):
+# _GEMINI_MODEL   = "gemini-2.0-flash"
+# _GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
+
 _SYSTEM_PROMPT_TEMPLATE = """You are a scheduling assistant. Convert the user's natural language request into a JSON object for a restaurant scheduling system.
 
-STAFF NAMES (use exactly as listed, match case-insensitively):
-{staff_names}
+STAFF — each entry shows  NAME (ID):
+{staff_info}
 
 VALID DAYS: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
-VALID SHIFTS: morning, evening
+VALID SHIFT NAMES: {shift_names}
+
+IDENTIFYING AN EMPLOYEE — three options, in order of preference:
+1. Use "employee_id" if the user quoted an 8-character ID (e.g. "A3F9B2C1").
+2. Use "employee_name" if the user said a name.  If the name is ambiguous
+   (two employees share it), return {{"error":"Ambiguous name — please use the employee ID"}}.
+3. Use "slot_lookup": {{"day":"DAY","shift":"SHIFT","role":"ROLE"}} if the user referred
+   to someone by their current slot (e.g. "the Chef on Monday morning").
+   Only use this when the user did NOT give a name or ID.
+   The caller will resolve the slot to a real employee before running the solver.
+
+For all employee references in the JSON, include EITHER:
+  "employee_id": "XXXXXXXX"    ← preferred when user gave an ID
+  OR "employee_name": "NAME"   ← when user gave a name
+  OR "slot_lookup": {{...}}     ← when user described the slot
+
+SHIFT RULES:
+- If the user specifies a shift (e.g. "morning", "evening"), use the closest matching shift name from VALID SHIFT NAMES.
+- If the user does NOT mention a specific shift but mentions a day, set "shift": "all" — this means the employee is unavailable for ALL shifts on that day.
+- Matching is case-insensitive. "morning" matches "Morning Shift", "Morning", etc.
 
 OUTPUT FORMAT — return ONLY valid JSON, no markdown, no explanation, no extra text.
 
-Supported types:
+Supported request types:
 
-1. unavailable — employee cannot work a specific shift
-   {{"type":"unavailable","employee_name":"NAME","day":"DAY","shift":"SHIFT"}}
+1. unavailable — employee cannot work a shift or a whole day
+   With specific shift: {{"type":"unavailable","employee_name":"NAME","day":"DAY","shift":"SHIFT NAME"}}
+   Whole day:           {{"type":"unavailable","employee_name":"NAME","day":"DAY","shift":"all"}}
 
-2. direct_swap — two employees swap their shifts
-   {{"type":"direct_swap","employee_name_1":"NAME1","day_1":"DAY1","shift_1":"SHIFT1","employee_name_2":"NAME2","day_2":"DAY2","shift_2":"SHIFT2"}}
+2. direct_swap — two employees swap their assigned shifts
+   {{"type":"direct_swap",
+     "employee_name_1":"NAME1","day_1":"DAY1","shift_1":"SHIFT1",
+     "employee_name_2":"NAME2","day_2":"DAY2","shift_2":"SHIFT2"}}
 
 3. avoid_back_to_back — avoid assigning both morning and evening on the same day
    {{"type":"avoid_back_to_back","employee_name":"NAME","penalty":5}}
 
-4. avoid_shift — avoid a shift type / day / day+shift combo
+4. avoid_shift — soft preference to avoid a particular shift/day combination
    {{"type":"avoid_shift","employee_name":"NAME","day":"DAY","shift":"SHIFT","penalty":3}}
-   (omit "day" or "shift" if not specified)
+   (omit "day" or "shift" if not specified by the user)
 
 EXAMPLES:
+User: "Julia cannot work on Monday"
+JSON: {{"type":"unavailable","employee_name":"Julia","day":"Monday","shift":"all"}}
+
+User: "Alice can't work Monday morning"
+JSON: {{"type":"unavailable","employee_name":"Alice","day":"Monday","shift":"Morning"}}
+
+User: "A3F9B2C1 can't come Sunday"
+JSON: {{"type":"unavailable","employee_id":"A3F9B2C1","day":"Sunday","shift":"all"}}
+
 User: "Ian can't come Sunday evening"
-JSON: {{"type":"unavailable","employee_name":"Ian","day":"Sunday","shift":"evening"}}
+JSON: {{"type":"unavailable","employee_name":"Ian","day":"Sunday","shift":"Evening"}}
+
+User: "The Chef on Monday morning can't work Tuesday"
+JSON: {{"type":"unavailable","slot_lookup":{{"day":"Monday","shift":"Morning","role":"Chef"}},"day":"Tuesday","shift":"all"}}
 
 User: "Brian wants to swap his Monday evening shift with Ian's Tuesday evening"
-JSON: {{"type":"direct_swap","employee_name_1":"Brian","day_1":"Monday","shift_1":"evening","employee_name_2":"Ian","day_2":"Tuesday","shift_2":"evening"}}
+JSON: {{"type":"direct_swap","employee_name_1":"Brian","day_1":"Monday","shift_1":"Evening","employee_name_2":"Ian","day_2":"Tuesday","shift_2":"Evening"}}
 
 User: "Avoid giving Eric back-to-back shifts"
 JSON: {{"type":"avoid_back_to_back","employee_name":"Eric","penalty":5}}
 
 User: "Try not to assign Alice to morning shifts"
-JSON: {{"type":"avoid_shift","employee_name":"Alice","shift":"morning","penalty":3}}
-
-User: "Avoid assigning Hannah on Sunday"
-JSON: {{"type":"avoid_shift","employee_name":"Hannah","day":"Sunday","penalty":3}}
-
-User: "Avoid assigning Brian to Saturday evening"
-JSON: {{"type":"avoid_shift","employee_name":"Brian","day":"Saturday","shift":"evening","penalty":3}}
+JSON: {{"type":"avoid_shift","employee_name":"Alice","shift":"Morning","penalty":3}}
 
 If the request is ambiguous or missing required information, return:
 {{"error":"REASON"}}"""
 
 
-"""
-def _call_gemini(system_prompt: str, user_message: str) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY not set.\n"
-            "Get a free key at: https://aistudio.google.com/app/apikey\n"
-            "  Windows:   set GEMINI_API_KEY=your-key\n"
-            "  Mac/Linux: export GEMINI_API_KEY=your-key"
-        )
-    body = {
-        "contents": [{"parts": [{"text": f"{system_prompt}\n\nUser request: {user_message}"}]}],
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 256},
-    }
-    resp = requests.post(_GEMINI_API_URL, params={"key": api_key}, json=body, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError) as e:
-        raise RuntimeError(f"Unexpected Gemini response: {data}") from e
-"""
-def _call_gemini(system_prompt: str, user_message: str) -> str:
+def _call_groq(system_prompt: str, user_message: str) -> str:
+    """Send a prompt to Groq and return the raw text response."""
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         raise RuntimeError(
@@ -578,16 +613,133 @@ def _call_gemini(system_prompt: str, user_message: str) -> str:
             {"role": "user",   "content": user_message},
         ],
         "temperature": 0,
-        "max_tokens": 256,
+        "max_tokens": 512,
     }
     resp = requests.post(_GROQ_API_URL, headers=headers, json=body, timeout=30)
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
 
-def parse_user_request(user_input: str, staff_names: List[str]) -> Dict[str, Any]:
-    """Convert a natural language string into a change dict."""
-    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(staff_names=", ".join(staff_names))
-    raw = _call_gemini(system_prompt, user_input).strip()
+
+def get_staff_info(data: Dict[str, Any]) -> str:
+    """Return a compact staff roster string for injection into the LLM prompt.
+
+    Format per line:  Name (ID)
+    This lets the LLM recognise both names and 8-char employee IDs.
+    """
+    return "\n".join(f"{s['name']} ({s['id']})" for s in data["staff"])
+
+
+def get_shift_names(data: Dict[str, Any]) -> str:
+    """Return comma-separated shift names taken from the solver data.
+
+    The adapter maps UI shift names directly, so we pass them through here
+    so the LLM uses the exact same strings the schedule grid uses.
+    """
+    names = sorted({r["shift"] for r in data.get("shift_requirements", [])})
+    return ", ".join(names) if names else "Morning Shift, Evening Shift"
+
+
+def resolve_employee(
+    change: Dict[str, Any],
+    data: Dict[str, Any],
+    current_schedule: List[Dict[str, str]],
+    field_prefix: str = "",
+) -> str:
+    """Resolve an employee reference in a change dict to a canonical name.
+
+    The LLM may identify an employee via:
+      - employee_id  (8-char unique ID)  → highest priority
+      - employee_name                    → matched case-insensitively
+      - slot_lookup  {day, shift, role}  → only valid if exactly one person
+                                           occupies that slot in the current schedule
+
+    Returns the canonical employee name string (as stored in data["staff"]).
+    Raises ValueError with a user-friendly message on any ambiguity or miss.
+
+    `field_prefix` handles direct_swap where keys are suffixed _1 / _2.
+    """
+    pfx = field_prefix  # e.g. "" or "_1" or "_2"
+
+    # --- Option 1: employee_id ---
+    # Check both plain key and suffixed key (e.g. "employee_id_1")
+    emp_id_val = (change.get("employee_id") or change.get(f"employee_id{pfx}"))
+    if emp_id_val:
+        emp_id_val = emp_id_val.strip().upper()
+        match = next((s for s in data["staff"] if s["id"].upper() == emp_id_val), None)
+        if not match:
+            raise ValueError(f"No employee found with ID '{emp_id_val}'.")
+        return match["name"]
+
+    # --- Option 2: employee_name ---
+    # Check both plain key and suffixed key (e.g. "employee_name_1")
+    name_val = (change.get("employee_name") or change.get(f"employee_name{pfx}"))
+    if name_val:
+        name_lower = name_val.strip().lower()
+        matches = [s for s in data["staff"] if s["name"].lower() == name_lower]
+        if not matches:
+            raise ValueError(f"Employee '{name_val}' not found in staff list.")
+        if len(matches) > 1:
+            ids = ", ".join(s["id"] for s in matches)
+            raise ValueError(
+                f"Multiple employees named '{name_val}' found. "
+                f"Please use their employee ID instead: {ids}"
+            )
+        return matches[0]["name"]
+
+    # --- Option 3: slot_lookup ---
+    # Check both plain key and suffixed key (e.g. "slot_lookup_1")
+    slot = change.get("slot_lookup") or change.get(f"slot_lookup{pfx}")
+    if slot:
+        day   = slot.get("day", "").strip()
+        shift = slot.get("shift", "").strip()
+        role  = slot.get("role", "").strip()
+        hits  = [
+            r for r in current_schedule
+            if r["day"].lower()   == day.lower()
+            and r["shift"].lower() == shift.lower()
+            and r["role"].lower()  == role.lower()
+        ]
+        if not hits:
+            raise ValueError(
+                f"No one is assigned as {role} on {day} {shift} in the current schedule."
+            )
+        if len(hits) > 1:
+            names = ", ".join(r["employee_name"] for r in hits)
+            raise ValueError(
+                f"Multiple employees in that slot ({names}). "
+                "Please refer to them by name or ID."
+            )
+        return hits[0]["employee_name"]
+
+    raise ValueError(
+        "Could not identify the employee. "
+        "Please provide a name, employee ID, or shift+role reference."
+    )
+
+
+def parse_user_request(
+    user_input: str,
+    data: Dict[str, Any],
+    current_schedule: List[Dict[str, str]],
+) -> Dict[str, Any]:
+    """Convert a natural language string into a validated change dict.
+
+    Steps:
+      1. Build a context-aware prompt from live staff/shift data.
+      2. Call the LLM (Groq).
+      3. Parse and strip any markdown fences from the response.
+      4. Resolve employee references (ID / name / slot_lookup) to canonical names.
+      5. Validate the resulting change dict.
+    """
+    staff_info  = get_staff_info(data)
+    shift_names = get_shift_names(data)
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+        staff_info=staff_info,
+        shift_names=shift_names,
+    )
+
+    raw = _call_groq(system_prompt, user_input).strip()
+    # Strip markdown code fences the LLM sometimes adds
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
     raw = re.sub(r"\n?```$", "", raw).strip()
 
@@ -599,14 +751,35 @@ def parse_user_request(user_input: str, staff_names: List[str]) -> Dict[str, Any
     if "error" in result:
         raise ValueError(f"LLM could not parse request: {result['error']}")
 
+    # Resolve all employee references to canonical names before validation
+    change_type = result.get("type", "")
+
+    if change_type == "direct_swap":
+        # Resolve each employee independently.
+        # Pass the full result dict + the suffix so resolve_employee can find
+        # both "employee_name_1" and plain "employee_name" style keys.
+        result["employee_name_1"] = resolve_employee(
+            result, data, current_schedule, field_prefix="_1"
+        )
+        result["employee_name_2"] = resolve_employee(
+            result, data, current_schedule, field_prefix="_2"
+        )
+    else:
+        result["employee_name"] = resolve_employee(result, data, current_schedule)
+
+    staff_names = get_staff_names(data)
     _validate_change(result, staff_names)
     return result
 
 
 def _validate_change(change: Dict[str, Any], staff_names: List[str]) -> None:
-    valid_days   = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
-    valid_shifts = {"morning","evening"}
-    valid_types  = {"unavailable","direct_swap","avoid_back_to_back","avoid_shift"}
+    """Validate a parsed change dict before passing it to update_schedule.
+
+    Shift names are no longer hardcoded to morning/evening — the adapter
+    uses the actual UI shift names, so we only check that days are valid.
+    """
+    valid_days  = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
+    valid_types = {"unavailable","direct_swap","avoid_back_to_back","avoid_shift"}
 
     t = change.get("type", "")
     if t not in valid_types:
@@ -614,30 +787,25 @@ def _validate_change(change: Dict[str, Any], staff_names: List[str]) -> None:
 
     name_set = {n.lower() for n in staff_names}
 
-    def ck_name(f):
+    def ck_name(f: str) -> None:
         n = change.get(f, "")
         if n.lower() not in name_set:
             raise ValueError(f"Employee '{n}' not found in staff list.")
 
-    def ck_day(f):
+    def ck_day(f: str) -> None:
         d = change.get(f)
         if d and d not in valid_days:
             raise ValueError(f"Invalid day: '{d}'")
 
-    def ck_shift(f):
-        s = change.get(f)
-        if s and s not in valid_shifts:
-            raise ValueError(f"Invalid shift: '{s}'")
-
     if t == "unavailable":
-        ck_name("employee_name"); ck_day("day"); ck_shift("shift")
+        ck_name("employee_name"); ck_day("day")
     elif t == "direct_swap":
         ck_name("employee_name_1"); ck_name("employee_name_2")
-        ck_day("day_1"); ck_day("day_2"); ck_shift("shift_1"); ck_shift("shift_2")
+        ck_day("day_1"); ck_day("day_2")
     elif t == "avoid_back_to_back":
         ck_name("employee_name")
     elif t == "avoid_shift":
-        ck_name("employee_name"); ck_day("day"); ck_shift("shift")
+        ck_name("employee_name"); ck_day("day")
 
 
 #  DISPLAY HELPERS
@@ -740,10 +908,11 @@ def main() -> None:
         if not user_input:
             continue
 
-        # Parse with LLM
+        # Parse with LLM — pass full data and current schedule so
+        # resolve_employee can handle ID / name / slot_lookup references.
         print("[Parsing with LLM...]")
         try:
-            change_request = parse_user_request(user_input, staff_names)
+            change_request = parse_user_request(user_input, data, schedule)
         except (ValueError, RuntimeError) as e:
             print(f"[Parse Error] {e}\n")
             continue

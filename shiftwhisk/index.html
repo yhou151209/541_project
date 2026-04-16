@@ -600,6 +600,10 @@ select.fi{cursor:pointer}
               <span class="wk-lbl" id="wk-lbl">This Week</span>
               <button class="wk-btn" onclick="changeWeek(1)">›</button>
             </div>
+            <!-- Auto Schedule button — calls the solver via the Flask backend -->
+            <button class="btn btn-primary" id="auto-schedule-btn" onclick="autoSchedule()" style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:15px">✦</span> Auto Schedule
+            </button>
           </div>
 
           <div id="summary-wrap"></div>
@@ -681,6 +685,10 @@ const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DAYS_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const WEEKEND=[5,6];
 
+// Base URL for the Flask backend (app.py).
+// Change this if you deploy the backend to a different host/port.
+const BACKEND_URL = 'http://localhost:5001';
+
 /* Storage */
 function getAccounts(){try{return JSON.parse(localStorage.getItem('sw_accounts')||'{}')}catch(e){return{}}}
 function saveAccounts(a){localStorage.setItem('sw_accounts',JSON.stringify(a))}
@@ -723,6 +731,17 @@ function save(){
     saveAccounts(a)
   }
 }
+/* Employee ID generation — 8 uppercase alphanumeric characters, unique per restaurant */
+function generateEmployeeId(){
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = '';
+  for(let i=0;i<8;i++) id += chars[Math.floor(Math.random()*chars.length)];
+  return id;
+}
+function isEmployeeIdUnique(id, excludeIndex=-1){
+  return !D.employees.some((e,i)=> i!==excludeIndex && e.employeeId===id);
+}
+
 function normalizeLegacyData(){
   if(!D)return;
   if(!D.restaurant) D.restaurant={name:'',hours:{}};
@@ -759,6 +778,9 @@ function normalizeLegacyData(){
   });
   D.employees = D.employees.map(e=>({
     id:e.id || ('emp'+Date.now()+Math.random()),
+    // employeeId: 8-char alphanumeric unique ID used by the solver.
+    // Auto-generated on first migration; never changes after that.
+    employeeId: e.employeeId || generateEmployeeId(),
     name:e.name || 'Unnamed',
     primaryRole:e.primaryRole || D.roles[0] || 'Staff',
     seniority:parseInt(e.seniority)||0,
@@ -766,6 +788,13 @@ function normalizeLegacyData(){
     availability:Array.isArray(e.availability)?e.availability:[],
     skills:Array.isArray(e.skills)?e.skills:[]
   }));
+  // Ensure uniqueness — if two employees ended up with the same employeeId
+  // (extremely unlikely but possible after data merges), regenerate.
+  const seenIds = new Set();
+  D.employees.forEach(e=>{
+    while(seenIds.has(e.employeeId)) e.employeeId = generateEmployeeId();
+    seenIds.add(e.employeeId);
+  });
 }
 
 /* Auth */
@@ -999,10 +1028,40 @@ function handleCSV(input){
       const cols=line.split(',').map(c=>c.trim());
       if(!cols[0])return;
       const name=cols[0];
-      const role=cols[1]&&D.roles.includes(cols[1])?cols[1]:D.roles[0];
+      // Case-insensitive role match so "server" matches "Server"
+      const roleRaw=cols[1]||'';
+      const role=D.roles.find(r=>r.toLowerCase()===roleRaw.toLowerCase())||D.roles[0]||roleRaw;
       const seniority=parseInt(cols[2])||0;
       const maxHours=parseInt(cols[3])||40;
-      imported.push({id:'emp'+Date.now()+Math.random(),name,primaryRole:role,seniority,maxHours,availability:[],skills:[]});
+      // col[4]: optional pipe-separated extra skills e.g. "Cashier|Cook"
+      const skillsRaw=(cols[4]||'').split('|').map(s=>s.trim()).filter(Boolean);
+      const skills=skillsRaw
+        .map(s=>D.roles.find(r=>r.toLowerCase()===s.toLowerCase())||s)
+        .filter(s=>s&&s!==role);
+      // col[5]: optional availability — "All" or pipe-separated "Mon-Morning|Tue-Evening"
+      // Format: DayAbbr-ShiftName where DayAbbr is Mon/Tue/Wed/Thu/Fri/Sat/Sun
+      // Empty or "All" means available for everything (empty array in UI = all shifts)
+      const availRaw=(cols[5]||'').trim();
+      let availability=[];
+      if(availRaw && availRaw.toLowerCase()!=='all'){
+        const dayMap={mon:0,tue:1,wed:2,thu:3,fri:4,sat:5,sun:6};
+        availRaw.split('|').forEach(slot=>{
+          const parts=slot.trim().split('-');
+          if(parts.length<2)return;
+          const dayKey=parts[0].toLowerCase();
+          const shiftName=parts.slice(1).join('-').trim();
+          const di=dayMap[dayKey];
+          if(di===undefined)return;
+          // Match shift by name (case-insensitive substring)
+          const sh=D.shifts.find(s=>s.name.toLowerCase().includes(shiftName.toLowerCase())||shiftName.toLowerCase().includes(s.name.toLowerCase()));
+          if(sh) availability.push(di+'_'+sh.id);
+        });
+      }
+      // Generate a unique 8-char employeeId for solver identification
+      let employeeId=generateEmployeeId();
+      while(imported.some(e=>e.employeeId===employeeId)||(D.employees||[]).some(e=>e.employeeId===employeeId))
+        employeeId=generateEmployeeId();
+      imported.push({id:'emp'+Date.now()+Math.random(),employeeId,name,primaryRole:role,seniority,maxHours,availability,skills});
     });
     preview.innerHTML=`<div style="background:#f7f8fc;border:1px solid #e7eaf2;border-radius:14px;padding:12px 14px;font-size:12px;color:#555">
       <strong>${imported.length} employee${imported.length!==1?'s':''} ready to import</strong><br>
@@ -1356,6 +1415,7 @@ function renderEmployees(){
             <span class="ebadge eb-role">${e.primaryRole}</span>
             ${skills.map(s=>`<span class="ebadge eb-sk">${s}</span>`).join('')}
             <span class="ebadge eb-av">${availabilityToText(e)}</span>
+            <span class="ebadge" style="background:#f0eeff;color:#7c5cff;border:1px solid #d8d0ff;font-family:monospace;letter-spacing:.04em" title="Employee ID — use this in the chat to identify this person">ID: ${e.employeeId||'—'}</span>
           </div>
           <div class="emp-actions">
             <button class="btn btn-sm" onclick="openEditEmpModal(${i})">Edit</button>
@@ -1418,7 +1478,14 @@ function confirmAddEmp(){
   const maxHours=parseInt(document.getElementById('ne-hrs').value)||40;
   const availability=Array.from(document.querySelectorAll('.avail-slot.on[data-key]')).map(el=>el.dataset.key);
   const skills=Array.from(document.querySelectorAll('#skill-grid .avail-slot.on')).map(el=>el.dataset.sk).filter(s=>s!==role);
-  D.employees.push({id:'emp'+Date.now()+Math.random(),name,primaryRole:role,seniority,maxHours,availability,skills});
+  // Generate a unique 8-char employee ID for solver identification
+  let employeeId = generateEmployeeId();
+  while(!isEmployeeIdUnique(employeeId)) employeeId = generateEmployeeId();
+  D.employees.push({
+    id:'emp'+Date.now()+Math.random(),
+    employeeId,
+    name, primaryRole:role, seniority, maxHours, availability, skills
+  });
   save();closeModal();renderEmployees();renderSchedule();
 }
 function openEditEmpModal(i){
@@ -1428,6 +1495,11 @@ function openEditEmpModal(i){
     <div class="modal">
       <div class="modal-t">Edit Employee</div>
       <div class="modal-s">Update the card. Existing schedule entries stay linked to this employee.</div>
+      <div style="display:flex;align-items:center;gap:10px;background:#f7f6ff;border:1px solid #e0d9ff;border-radius:12px;padding:10px 14px;margin-bottom:4px">
+        <span style="font-size:11px;color:#7c5cff;font-weight:800;text-transform:uppercase;letter-spacing:.06em">Employee ID</span>
+        <span style="font-family:monospace;font-size:14px;font-weight:800;color:#3d2fa0;letter-spacing:.08em">${e.employeeId||'—'}</span>
+        <span style="font-size:11px;color:#a89fd4;margin-left:auto">Read-only · use in chat to identify this person</span>
+      </div>
       <div class="g2">
         <div><div class="fl">Full Name</div><input class="fi" id="ee-name" value="${e.name}"></div>
         <div><div class="fl">Primary Role</div><select class="fi" id="ee-role">${roleOpts}</select></div>
@@ -1542,7 +1614,13 @@ function renderHoursPage(){
   });
 }
 
-/* AI Chat */
+/* AI Chat + Solver integration */
+
+// In-memory cache of the last solver state returned by the backend.
+// Sent back with every /api/chat request so the server can apply
+// incremental changes without re-reading the full UI state from scratch.
+let solverState = { solverData: null, solverSchedule: null };
+
 let chatOpen=false;
 function toggleChat(){
   chatOpen=!chatOpen;
@@ -1567,22 +1645,102 @@ function addChat(type,text){
     const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!';
   }
 }
-function buildMockAssistantReply(msg){
-  const lower=msg.toLowerCase();
-  if(/swap|switch/.test(lower))return 'Got it. I logged this as a shift swap request. Once your scheduling engine is connected, this can be validated and proposed automatically.';
-  if(/assign|put|schedule|add/.test(lower))return 'Understood. I treated this as a scheduling request. In the full version, this will be checked against availability, max hours, and staffing rules.';
-  if(/clear|remove|unassign|cancel/.test(lower))return 'Noted. I treated this as a removal request. In the integrated version, the system can also suggest a replacement if the shift becomes understaffed.';
-  return 'Message received. This demo returns a placeholder response for now, but the UI is ready for your scheduling engine later.';
+
+// Apply a D.schedule patch returned by the backend and re-render.
+function applySchedulePatch(patchedSchedule){
+  D.schedule = patchedSchedule;
+  save();
+  renderSchedule();
+  if(document.getElementById('page-employees').classList.contains('active')) renderEmployees();
 }
+
+// ── Auto Schedule ──────────────────────────────────────────────────────────
+// Calls POST /api/schedule/generate, then writes the result into D.schedule.
+async function autoSchedule(){
+  const btn = document.getElementById('auto-schedule-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.6">⏳ Generating…</span>';
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/schedule/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiData: D, weekOffset: D.weekOffset }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      alert(`Auto Schedule failed: ${data.error}`);
+      return;
+    }
+
+    // Cache solver state for subsequent chat requests
+    solverState = {
+      solverData:     data.solverData     || null,
+      solverSchedule: data.solverSchedule || null,
+    };
+
+    applySchedulePatch(data.schedule);
+
+    // Notify the chat window
+    addChat('bot', `✦ Auto Schedule complete. ${data.message}\n\nYou can now use the chat to make adjustments — e.g. "John can't work Monday morning" or use an Employee ID directly.`);
+    if(!chatOpen){
+      const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!';
+    }
+
+  } catch(err) {
+    alert('Could not reach the backend. Make sure app.py is running on ' + BACKEND_URL);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span style="font-size:15px">✦</span> Auto Schedule';
+  }
+}
+
+// ── Chat send ──────────────────────────────────────────────────────────────
+// Sends the user message to POST /api/chat, which calls the LLM and solver.
 async function sendChat(){
-  const inp=document.getElementById('chat-inp');
-  const msg=inp.value.trim();if(!msg)return;
-  inp.value='';addChat('user',msg);
-  const thinking=appendBubble('think','');thinking.className='cb cb-think';thinking.innerHTML='<span class="loading">Thinking</span>';
-  setTimeout(()=>{
+  const inp = document.getElementById('chat-inp');
+  const msg = inp.value.trim();
+  if(!msg) return;
+  inp.value = '';
+  addChat('user', msg);
+
+  const thinking = appendBubble('think', '');
+  thinking.className = 'cb cb-think';
+  thinking.innerHTML = '<span class="loading">Thinking</span>';
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uiData:         D,
+        weekOffset:     D.weekOffset,
+        message:        msg,
+        // Echo back the cached solver state so the backend can apply
+        // incremental changes without re-running the full adapter.
+        solverData:     solverState.solverData,
+        solverSchedule: solverState.solverSchedule,
+      }),
+    });
+    const data = await res.json();
     thinking.remove();
-    addChat('bot',buildMockAssistantReply(msg));
-  },550);
+
+    // Update cached solver state with the version the backend just computed
+    if(data.solverData)     solverState.solverData     = data.solverData;
+    if(data.solverSchedule) solverState.solverSchedule = data.solverSchedule;
+
+    // Apply the updated schedule to the UI
+    if(data.schedule) applySchedulePatch(data.schedule);
+
+    addChat('bot', data.reply || 'Done.');
+
+  } catch(err) {
+    thinking.remove();
+    addChat('bot', '⚠ Could not reach the backend. Make sure app.py is running on ' + BACKEND_URL);
+    console.error(err);
+  }
 }
 
 /* Boot */

@@ -1,0 +1,11 @@
+Name,Role,Seniority,MaxHours,Skills,Availability
+Alice,Server,0,25,,Mon-Morning|Tue-Morning|Wed-Morning|Thu-Morning|Fri-Morning|Sat-Morning|Sun-Morning
+Brian,Server,2,40,Cashier,All
+Cindy,Cashier,0,25,,Mon-Morning|Mon-Evening|Tue-Evening|Wed-Morning|Wed-Evening|Thu-Evening|Fri-Morning|Fri-Evening|Sat-Morning|Sat-Evening|Sun-Evening
+Daniel,Server,0,25,,Mon-Morning|Tue-Morning|Tue-Evening|Wed-Morning|Thu-Morning|Thu-Evening|Fri-Morning|Sat-Morning|Sat-Evening|Sun-Morning
+Eric,Server,2,40,Cashier,All
+Fiona,Cashier,0,25,,Mon-Morning|Tue-Morning|Tue-Evening|Wed-Morning|Thu-Morning|Thu-Evening|Fri-Morning|Sat-Morning|Sat-Evening|Sun-Morning|Sun-Evening
+George,Server,2,40,,All
+Hannah,Cashier,0,25,Server,Mon-Morning|Mon-Evening|Tue-Morning|Wed-Morning|Wed-Evening|Thu-Morning|Fri-Morning|Fri-Evening|Sat-Morning|Sat-Evening|Sun-Evening
+Ian,Server,2,40,Cashier,All
+Julia,Cashier,0,25,,Mon-Morning|Tue-Morning|Tue-Evening|Wed-Morning|Thu-Morning|Thu-Evening|Fri-Morning|Sat-Morning|Sat-Evening|Sun-Morning|Sun-Evening
