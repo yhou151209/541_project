@@ -521,6 +521,9 @@ JSON: {{"type":"unavailable","employee_name":"Ian","day":"Sunday","shift":"eveni
 User: "Brian wants to swap his Monday evening shift with Ian's Tuesday evening"
 JSON: {{"type":"direct_swap","employee_name_1":"Brian","day_1":"Monday","shift_1":"evening","employee_name_2":"Ian","day_2":"Tuesday","shift_2":"evening"}}
 
+User: "Brian wants to swap his Monday evening shift with Ian's Tuesday evening"
+JSON: {{"type":"direct_swap","employee_name_1":"Brian","day_1":"Monday","shift_1":"evening","employee_name_2":"Ian","day_2":"Tuesday","shift_2":"evening"}}
+
 User: "Avoid giving Eric back-to-back shifts"
 JSON: {{"type":"avoid_back_to_back","employee_name":"Eric","penalty":5}}
 
@@ -533,8 +536,8 @@ JSON: {{"type":"avoid_shift","employee_name":"Hannah","day":"Sunday","penalty":3
 User: "Avoid assigning Brian to Saturday evening"
 JSON: {{"type":"avoid_shift","employee_name":"Brian","day":"Saturday","shift":"evening","penalty":3}}
 
-If the request is ambiguous or missing required information, return:
-{{"error":"REASON"}}"""
+CRITICAL RULE: DO NOT guess, infer, or hallucinate missing days or shifts. If the user does not explicitly state the day and shift for ALL employees involved, you MUST return an error:
+{{"error":"missing required information"}}"""
 
 
 """
