@@ -1,4 +1,4 @@
-# ShiftWhisk — Dev Notes
+# ShiftWhisk — CHANGELOG
 
 ### Architecture
 ```
@@ -20,7 +20,7 @@ Open `http://localhost:3000`
 
 ---
 
-## Changes Made Today
+## Session 1
 
 ### Core Integration
 - Built `adapter.py` — bridges the UI's `D` object to the solver's JSON schema
@@ -31,65 +31,124 @@ Open `http://localhost:3000`
 - Wired `index.html` to the real backend (replaced all mock responses)
 
 ### Employee ID
-- Auto-generated 8-char alphanumeric ID (`A3F9B2C1`) on every employee
-- Displayed as a read-only badge on employee cards and edit modal
-- Used by the solver as the canonical identifier to handle duplicate names
+- Auto-generated 8-char alphanumeric ID (e.g. `A3F9B2C1`) on every employee
+- Displayed as read-only badge on employee cards and edit modal
+- Used by solver as canonical identifier to handle duplicate names
 - Supported in chat: `"A3F9B2C1 can't work Monday"`
 
 ### Auto Schedule Button
-- Added `Auto Schedule` button to the schedule page
+- Added `✦ Auto Schedule` button to the schedule page
 - Calls the solver directly — fills the entire week in one click
-- Chat window is only needed for adjustments after auto-schedule runs
+- Chat window only needed for adjustments after auto-schedule runs
 
-### LLM Improvements
-- Employee lookup now supports 3 methods: ID / name / shift+role slot
-- `"Julia can't work Monday"` (no shift specified) → marks all shifts on that day unavailable
-- Shift name matching is now fuzzy: `"morning"` matches `"Morning Shift"`
-- Fixed `direct_swap` employee resolution (suffix key bug `_1`/`_2`)
+### CSV Import
+- Added `Skills` column (pipe-separated): `Cashier|Cook`
+- Added `Availability` column: `Mon-Morning|Tue-Evening` or `All`
+- Role and shift matching is case-insensitive
 
 ### Case-Insensitive Matching
 - `with_llm.py` — skill check, availability lookup, name matching
 - `adapter.py` — roles and skills normalised to lowercase throughout
 - `index.html` CSV import — role matching, skill matching
 
-### CSV Import
-- Added `Skills` column (pipe-separated): `Cashier|Cook`
-- Added `Availability` column: `Mon-Morning|Tue-Evening` or `All`
-- Role matching is now case-insensitive (`server` matches `Server`)
-- Employee ID auto-generated on import
+---
+
+## Session 2
+
+### Teammate Solver Improvements (merged from notebook)
+- `DAY_ALIASES` + `SHIFT_ALIASES` — `mon/tue/am/pm/night` etc. all supported
+- `simplify_text()` + `resolve_with_aliases()` — unified text normalisation
+- `resolve_employee_name_fuzzy()` — typo correction via difflib (`Iann → Ian`)
+- Cross-day back-to-back — evening → next morning also counts as back-to-back
+- `shift_preference` supports negative penalty — negative = prefer, positive = avoid
+- `set_availability_by_pattern()` — batch set availability for whole day / shift type
+- `validate_data()` auto-normalises day/shift on load
+
+### New Scheduling Priorities (in order)
+1. Hard constraints — availability, skills, staffing counts, max hours
+2. Full-time first — employees with `max_hours >= 30` get filled first (weight 6)
+3. Seniority on busy shifts — evening/weekend penalises low-seniority staff
+4. Senior coverage — soft penalty when a shift has no senior (seniority >= 2) available
+5. Fairness — minimise max load across part-time employees after full-timers are satisfied
+6. Stability — keep previous assignments when re-optimising
+7. User preferences — `shift_preference`, `avoid_back_to_back`
+
+### LLM Improvements
+- Employee lookup supports 3 methods: ID / name / shift+role slot lookup
+- No shift specified → marks all shifts that day unavailable
+- Shift name matching is fuzzy: `"morning"` matches `"Morning Shift"`
+- Fixed `direct_swap` employee resolution (suffix key bug `_1`/`_2`)
+- Updated prompt with examples for all change types including negative penalty
+
+### Preferences Panel
+- `Preferences` button on schedule page shows accumulated preferences
+- Lists each preference with penalty badge (green = prefer, orange = avoid)
+- Each preference can be individually deleted with Remove button
+- Deleting a preference prompts user to re-run Auto Schedule
+
+### Preferences Persistence
+- Solver state (including preferences) saved to `D.solverCache` in localStorage
+- Survives page refresh — preferences not lost on reload
+- Auto Schedule always loads persisted preferences before re-running solver
+
+### Export CSV
+- `Export CSV` button on schedule page
+- Downloads current week's schedule as a CSV file
+- Format: Week, Day, Date, Shift, Role, Employee, Employee ID
+- Unfilled slots marked as `(unfilled)`
+- Filename: `schedule_YYYY-MM-DD.csv`
+
+### Availability Sync (chat to employee panel)
+- After an `unavailable` chat change, bot asks if user wants to permanently update availability
+- Two buttons: Yes update / No keep as is
+- Yes updates `D.employees` availability and saves to localStorage
+- Only triggered for `unavailable` type — swap and preferences not affected
+- Handles empty availability array correctly (expand all slots first, then remove)
+
+### Bug Fixes
+- Fixed custom shift names (e.g. `Afternoon`) being incorrectly mapped to `morning`
+- `normalize_shift()` now falls back gracefully for unrecognised shift names
+- `solver_to_ui()` shift name matching now case-insensitive
+- `set_availability_by_pattern()` correctly handles all shift types including custom names
+- `direct_swap` resolve employee fixed for `_1`/`_2` suffix keys
 
 ---
 
-## Known Limitations & Things to Improve
+## Known Limitations
+
+### Scheduling
+- **No per-week schedule control** — operating hours apply globally; no way to mark a specific date as closed
+- **No per-day shift control** — can't disable just Sunday morning without affecting all weeks (workaround: set all Sunday morning staffing counts to 0)
+- **No special date staffing** — can't add extra staff for specific dates like holidays or events
+- **Solver timeout 15s** — large rosters may return a suboptimal schedule
 
 ### LLM
-- **Too many unsupported requests** — the solver only handles 4 change types
-  (`unavailable`, `direct_swap`, `avoid_back_to_back`, `avoid_shift`).
-  Common requests like "add a shift", "remove someone from Tuesday", or
-  "who is working Saturday?" are not supported yet.
-- **No conversation memory** — every chat message is independent.
-  The LLM doesn't remember what was said earlier in the chat window.
+- **Only 4 change types supported** — `unavailable`, `direct_swap`, `avoid_back_to_back`, `shift_preference`; requests like "remove someone from Tuesday" or "who's working Saturday?" are not handled
+- **No conversation memory** — each chat message is independent
+- **Groq rate limits** — free tier has request limits; no retry logic
 
-### Solver
-- **No hard constraint for "must work" rules** — can only say unavailable,
-  not "must be assigned to this shift".
-- **No multi-week memory** — solver reruns from scratch each time.
-  Preferences set via chat are lost on page refresh.
-- **Solver timeout is 10s** — large staff rosters may hit the limit and
-  return a suboptimal schedule.
+### Data
+- **localStorage only** — clearing browser data or switching computers loses everything
+- **No PDF export** — CSV only; no print-friendly view
+- **No undo for Auto Schedule** — overwrites current week with no rollback
 
-### UI / Data
-- **Data lives in localStorage** — clearing browser data wipes everything.
-  No real database or user accounts backend.
-- **No export** — can't export the final schedule to PDF, Excel, or print view.
-- **No notifications** — no way to notify employees of their schedule.
-- **Single manager** — no multi-user or role-based access (e.g. employee
-  self-service to set their own availability).
-- **No undo** — once Auto Schedule runs it overwrites the current week.
-  No history or rollback.
+---
 
-### Deployment
-- Currently local only — needs a production WSGI server (e.g. Gunicorn)
-  and a hosting platform (e.g. Railway) to go live.
-- `index.html` is a static file — needs to be served separately
-  (e.g. GitHub Pages / Netlify) for public access.
+## Backlog (next to build)
+
+### High Priority
+- **Per-day shift configuration** — disable specific shifts on specific days of the week
+- **Special date overrides** — mark a date as closed or add extra staffing for events
+- **"Remove from shift" chat command** — `"remove Alice from Tuesday morning"`
+- **Schedule query via chat** — `"who's working Saturday evening?"`
+
+### Medium Priority
+- **PDF / print export** — manager-friendly printable schedule
+- **Undo Auto Schedule** — save previous state before overwriting
+- **Preference history** — show when each preference was added
+
+### Low Priority
+- **Multi-device sync** — replace localStorage with a real database (Firebase recommended)
+- **Employee self-service** — employees view their own schedule and set availability
+- **Notifications** — notify employees when schedule is published or changed
+- **Multi-manager support** — role-based access control
