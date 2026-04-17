@@ -80,15 +80,25 @@ def generate():
     global _solver_data, _solver_schedule
 
     body = request.get_json(silent=True) or {}
-    ui_data    = body.get("uiData")
+    ui_data     = body.get("uiData")
     week_offset = int(body.get("weekOffset", 0))
+    # solverCache is the persisted solver state from localStorage.
+    # It may contain accumulated preferences set via chat in previous sessions.
+    solver_cache = body.get("solverCache") or {}
 
     if not ui_data:
         return _error("Missing 'uiData' in request body.")
 
-    # Convert UI data → solver format
+    # Extract persisted preferences from the cached solver data
+    persisted_prefs = []
+    cached_data = solver_cache.get("solverData") or {}
+    if cached_data and isinstance(cached_data.get("preferences"), list):
+        persisted_prefs = cached_data["preferences"]
+
+    # Convert UI data → solver format, merging any persisted preferences
     try:
-        solver_data = ui_to_solver(ui_data, week_offset)
+        solver_data = ui_to_solver(ui_data, week_offset,
+                                   persisted_preferences=persisted_prefs)
     except Exception as exc:
         return _error(f"Data conversion error: {exc}")
 
@@ -135,23 +145,32 @@ def chat():
     ui_data       = body.get("uiData")
     week_offset   = int(body.get("weekOffset", 0))
     message       = (body.get("message") or "").strip()
-    # The UI echoes back the solver state it received from the last call
+    # The UI echoes back the solver state it received from the last call,
+    # including any accumulated preferences from chat history.
     client_solver_data  = body.get("solverData")
     client_solver_sched = body.get("solverSchedule")
+    # solverCache is the full persisted state from localStorage
+    solver_cache = body.get("solverCache") or {}
 
     if not ui_data:
         return _error("Missing 'uiData' in request body.")
     if not message:
         return _error("Missing 'message' in request body.")
 
-    # Use client-provided solver state if available; fall back to server memory
+    # Use client-provided solver state if available; fall back to server memory.
+    # Prefer the inline solverData (most recent) over the cache.
     solver_data  = client_solver_data  or _solver_data
     solver_sched = client_solver_sched or _solver_schedule
 
-    # If still no solver state, auto-generate before processing the chat
+    # If still no solver state, bootstrap from UI data + any persisted prefs
     if solver_data is None or solver_sched is None:
+        persisted_prefs = []
+        cached_data = solver_cache.get("solverData") or {}
+        if cached_data and isinstance(cached_data.get("preferences"), list):
+            persisted_prefs = cached_data["preferences"]
         try:
-            solver_data  = ui_to_solver(ui_data, week_offset)
+            solver_data  = ui_to_solver(ui_data, week_offset,
+                                        persisted_preferences=persisted_prefs)
             solver_sched = generate_schedule(solver_data)
         except (ValueError, Exception) as exc:
             return _error(
@@ -186,20 +205,53 @@ def chat():
     # --- Generate a human-readable explanation ---
     explanation = generate_explanation(solver_data, solver_sched, new_sched, change)
 
+    # Debug: print what changed so we can verify the solver worked correctly
+    old_set = {(r["employee_id"], r["day"], r["shift"]) for r in solver_sched}
+    new_set = {(r["employee_id"], r["day"], r["shift"]) for r in new_sched}
+    removed = old_set - new_set
+    added   = new_set - old_set
+    print(f"[DEBUG] Change applied: {change.get('type')} for {change.get('employee_name','?')}")
+    print(f"[DEBUG] Parsed change dict: {change}")
+    print(f"[DEBUG] Removed assignments: {sorted(removed)}")
+    print(f"[DEBUG] Added assignments:   {sorted(added)}")
+
+    # Debug: check Cindy's availability in new_data after the change
+    emp_name = change.get("employee_name", "")
+    emp_avail = [
+        r for r in new_data["availability"]
+        if r["employee_id"] in {s["id"] for s in new_data["staff"] if s["name"].lower() == emp_name.lower()}
+    ]
+    wed_avail = [r for r in emp_avail if r["day"].lower() == "wednesday"]
+    print(f"[DEBUG] {emp_name} Wednesday availability in new_data: {wed_avail}")
+    
+    # Debug: check avail_lookup for this employee on Wednesday
+    from with_llm import make_availability_lookup
+    avail_lookup = make_availability_lookup(new_data["availability"])
+    emp_id = next((s["id"] for s in new_data["staff"] if s["name"].lower() == emp_name.lower()), None)
+    if emp_id:
+        wed_lookup = {k: v for k, v in avail_lookup.items() if k[0] == emp_id and "wednesday" in k[1].lower()}
+        print(f"[DEBUG] avail_lookup for {emp_name} on Wednesday: {wed_lookup}")
+
     # --- Save updated state ---
     _solver_data     = new_data
     _solver_schedule = new_sched
 
     # --- Convert back to UI format ---
     new_cells = solver_to_ui(new_sched, ui_data, week_offset)
+    print(f"[DEBUG] new_cells keys: {list(new_cells.keys())[:10]}")
+    print(f"[DEBUG] week_offset: {week_offset}")
     existing  = ui_data.get("schedule", {})
     patched   = merge_schedule(existing, new_cells, week_offset)
+    print(f"[DEBUG] patched keys sample: {list(patched.keys())[:10]}")
 
     return jsonify({
         "reply":          explanation,
         "schedule":       patched,
         "solverData":     new_data,
         "solverSchedule": new_sched,
+        # Echo the parsed change back so the frontend can prompt the user
+        # to update D.employees availability for "unavailable" changes.
+        "parsedChange":   change,
     })
 
 

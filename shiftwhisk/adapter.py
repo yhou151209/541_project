@@ -76,15 +76,20 @@ def _day_is_closed(ui_data: Dict[str, Any], day_index: int) -> bool:
 # UI → Solver
 # ---------------------------------------------------------------------------
 
-def ui_to_solver(ui_data: Dict[str, Any], week_offset: int = 0) -> Dict[str, Any]:
+def ui_to_solver(
+    ui_data: Dict[str, Any],
+    week_offset: int = 0,
+    persisted_preferences: List[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
     """Convert the UI `D` object into the dict expected by with_llm.solve_schedule.
 
     Parameters
     ----------
-    ui_data     : The full `D` object sent from the browser (JSON-decoded).
-    week_offset : Which week the manager is viewing (0 = current week).
-                  Used only to determine the correct schedule cell keys;
-                  the solver itself is week-agnostic.
+    ui_data                : The full `D` object sent from the browser (JSON-decoded).
+    week_offset            : Which week the manager is viewing (0 = current week).
+    persisted_preferences  : Preferences saved in D.solverCache from previous
+                             chat sessions.  Merged into the returned dict so
+                             Auto Schedule always applies accumulated rules.
 
     Returns
     -------
@@ -179,9 +184,14 @@ def ui_to_solver(ui_data: Dict[str, Any], week_offset: int = 0) -> Dict[str, Any
                     })
 
     # ------------------------------------------------------------ preferences
-    # Preferences are stored on the solver data dict after the first chat
-    # update; they are not part of the UI's D object yet, so start empty.
+    # Preferences accumulate via chat and are persisted in D.solverCache on
+    # the frontend.  The caller (app.py) passes them in so they survive
+    # page refreshes and Auto Schedule reruns.
     preferences: List[Dict[str, Any]] = []
+
+    # Merge persisted preferences from previous chat sessions
+    if persisted_preferences:
+        preferences = list(persisted_preferences)
 
     return {
         "staff":              staff,
@@ -217,8 +227,10 @@ def solver_to_ui(
 
     Only the cells for `week_offset` are replaced; other weeks are untouched.
     """
-    # Build lookup maps for the reverse translation
-    shift_name_to_id: Dict[str, str] = {sh["name"]: sh["id"]
+    # Build lookup maps for the reverse translation.
+    # Use lowercase keys so matching is case-insensitive — the solver stores
+    # shift names in lowercase (e.g. "afternoon") while the UI may use "Afternoon".
+    shift_name_to_id: Dict[str, str] = {sh["name"].lower(): sh["id"]
                                          for sh in ui_data.get("shifts", [])}
     day_to_index: Dict[str, int]     = {name: i for i, name in enumerate(DAYS)}
 
@@ -239,7 +251,7 @@ def solver_to_ui(
         solver_id  = row["employee_id"]
 
         di       = day_to_index.get(day_name)
-        shift_id = shift_name_to_id.get(shift_name)
+        shift_id = shift_name_to_id.get(shift_name.lower())  # lowercase for case-insensitive match
         ui_emp_id = solver_id_to_ui_id.get(solver_id)
 
         # Skip rows we can't map (shouldn't happen in a consistent dataset)

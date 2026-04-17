@@ -600,13 +600,38 @@ select.fi{cursor:pointer}
               <span class="wk-lbl" id="wk-lbl">This Week</span>
               <button class="wk-btn" onclick="changeWeek(1)">›</button>
             </div>
-            <!-- Auto Schedule button — calls the solver via the Flask backend -->
-            <button class="btn btn-primary" id="auto-schedule-btn" onclick="autoSchedule()" style="display:flex;align-items:center;gap:7px">
-              <span style="font-size:15px">✦</span> Auto Schedule
-            </button>
+            <!-- Action buttons row -->
+            <div style="display:flex;gap:8px;align-items:center">
+              <!-- Auto Schedule: calls the solver via the Flask backend -->
+              <button class="btn btn-primary" id="auto-schedule-btn" onclick="autoSchedule()" style="display:flex;align-items:center;gap:7px">
+                <span style="font-size:15px">✦</span> Auto Schedule
+              </button>
+              <!-- Preferences: shows accumulated solver preferences with delete option -->
+              <button class="btn" id="prefs-btn" onclick="togglePrefsPanel()" style="display:flex;align-items:center;gap:6px">
+                <span>📋</span> <span id="prefs-label">Preferences</span>
+              </button>
+              <!-- Export CSV: downloads current week schedule as a CSV file -->
+              <button class="btn" onclick="exportScheduleCSV()" style="display:flex;align-items:center;gap:6px">
+                <span>⬇</span> Export CSV
+              </button>
+            </div>
           </div>
 
           <div id="summary-wrap"></div>
+
+          <!-- Preferences panel — hidden by default, toggled by prefs-btn -->
+          <div id="prefs-panel" style="display:none;margin-bottom:14px">
+            <div class="card" style="padding:16px 20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div>
+                  <div style="font-size:14px;font-weight:800;color:#111">Scheduling Preferences</div>
+                  <div style="font-size:12px;color:#8d95a5;margin-top:2px">These are applied every time Auto Schedule runs. Delete to remove.</div>
+                </div>
+                <button class="btn btn-sm" onclick="togglePrefsPanel()">Close</button>
+              </div>
+              <div id="prefs-list"></div>
+            </div>
+          </div>
 
           <div class="card" style="padding:12px 14px;margin-bottom:14px">
             <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:#6d7585">
@@ -754,6 +779,7 @@ function normalizeLegacyData(){
   if(!D.staffing) D.staffing={};
   if(!Array.isArray(D.employees)) D.employees=[];
   if(!D.schedule) D.schedule={};
+  if(!D.solverCache) D.solverCache={};
   // migrate old schedule format from [empId] to [{empId, role}]
   Object.keys(D.schedule).forEach(key=>{
     const val=D.schedule[key];
@@ -856,6 +882,8 @@ function enterApp(){
     document.getElementById('chat-fab').style.display='block';
     document.getElementById('chat-msgs').innerHTML='';
     D.chatHistory.slice(-20).forEach(m=>appendBubble(m.type,m.text));
+    // Restore solver state (including preferences) from localStorage
+    loadSolverCache();
     showPage('schedule');
   }
 }
@@ -1617,9 +1645,143 @@ function renderHoursPage(){
 /* AI Chat + Solver integration */
 
 // In-memory cache of the last solver state returned by the backend.
-// Sent back with every /api/chat request so the server can apply
-// incremental changes without re-reading the full UI state from scratch.
+// Also persisted to D.solverCache in localStorage so preferences survive refresh.
 let solverState = { solverData: null, solverSchedule: null };
+
+// Load persisted solver state from localStorage on boot (called in enterApp)
+function loadSolverCache() {
+  if (D && D.solverCache) {
+    solverState = {
+      solverData:     D.solverCache.solverData     || null,
+      solverSchedule: D.solverCache.solverSchedule || null,
+    };
+  }
+}
+
+// Save solver state into D so localStorage persists preferences across refreshes
+function saveSolverCache() {
+  if (D) {
+    D.solverCache = {
+      solverData:     solverState.solverData     || null,
+      solverSchedule: solverState.solverSchedule || null,
+    };
+    save();
+  }
+}
+
+// ── Preferences panel ─────────────────────────────────────────────────────
+
+let prefsPanelOpen = false;
+
+function togglePrefsPanel() {
+  prefsPanelOpen = !prefsPanelOpen;
+  document.getElementById('prefs-panel').style.display = prefsPanelOpen ? 'block' : 'none';
+  if (prefsPanelOpen) renderPrefsPanel();
+}
+
+function renderPrefsPanel() {
+  const prefs = (solverState.solverData && solverState.solverData.preferences) || [];
+  const label = document.getElementById('prefs-label');
+  if (label) label.textContent = prefs.length ? `Preferences (${prefs.length})` : 'Preferences';
+
+  const list = document.getElementById('prefs-list');
+  if (!list) return;
+
+  if (!prefs.length) {
+    list.innerHTML = '<div style="font-size:13px;color:#a0a8b8;padding:8px 0">No preferences set yet. Use the chat to add preferences like "avoid Alice morning shifts".</div>';
+    return;
+  }
+
+  list.innerHTML = prefs.map((p, i) => {
+    // Build a human-readable label for each preference
+    let desc = '';
+    const name = p.employee_name || '';
+    const type = p.type || '';
+    const penalty = parseInt(p.penalty || 0);
+    const direction = penalty < 0 ? 'Prefer' : 'Avoid';
+
+    if (type === 'avoid_back_to_back' || type === 'back_to_back_preference') {
+      desc = `Avoid back-to-back shifts for ${name}`;
+    } else if (type === 'shift_preference' || type === 'avoid_shift') {
+      const parts = [direction, name];
+      if (p.day)   parts.push(p.day);
+      if (p.shift) parts.push(p.shift);
+      desc = parts.join(' → ');
+    } else {
+      desc = JSON.stringify(p);
+    }
+
+    const penaltyBadge = penalty !== 0
+      ? `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:${penalty>0?'#fff3e0':'#e8f5e9'};color:${penalty>0?'#e65100':'#2e7d32'};font-weight:700;margin-left:6px">${penalty>0?'+'+penalty:penalty}</span>`
+      : '';
+
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0f2f7">
+      <div style="font-size:13px;color:#222">${desc}${penaltyBadge}</div>
+      <button class="btn btn-sm btn-danger" onclick="deletePref(${i})" style="flex-shrink:0;margin-left:12px">Remove</button>
+    </div>`;
+  }).join('');
+}
+
+function deletePref(index) {
+  if (!solverState.solverData || !solverState.solverData.preferences) return;
+  solverState.solverData.preferences.splice(index, 1);
+  saveSolverCache();
+  renderPrefsPanel();
+  // Update button label
+  const prefs = solverState.solverData.preferences;
+  const label = document.getElementById('prefs-label');
+  if (label) label.textContent = prefs.length ? `Preferences (${prefs.length})` : 'Preferences';
+  addChat('bot', 'Preference removed. Click Auto Schedule to regenerate with the updated rules.');
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────────
+
+function exportScheduleCSV() {
+  const DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const mon = getMonday(D.weekOffset);
+  const weekStr = `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+
+  const rows = [['Week','Day','Date','Shift','Role','Employee','Employee ID']];
+
+  for (let di = 0; di < 7; di++) {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + di);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const dayName = DAYS_FULL[di];
+
+    if (isDayClosed(di)) continue;
+
+    D.shifts.forEach(sh => {
+      const assigned = getAssigned(D.weekOffset, di, sh.id);
+      if (!assigned.length) {
+        rows.push([weekStr, dayName, dateStr, sh.name, '(unfilled)', '', '']);
+      } else {
+        assigned.forEach(a => {
+          const emp = D.employees.find(e => e.id === a.empId);
+          rows.push([
+            weekStr,
+            dayName,
+            dateStr,
+            sh.name,
+            a.role || (emp ? emp.primaryRole : ''),
+            emp ? emp.name : a.empId,
+            emp ? (emp.employeeId || '') : '',
+          ]);
+        });
+      }
+    });
+  }
+
+    const escapeCSV = cell => '"' + String(cell).replace(/"/g, '""') + '"';
+  const csv = rows.map(r => r.map(escapeCSV).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `schedule_${weekStr}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 let chatOpen=false;
 function toggleChat(){
@@ -1665,7 +1827,11 @@ async function autoSchedule(){
     const res = await fetch(`${BACKEND_URL}/api/schedule/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uiData: D, weekOffset: D.weekOffset }),
+      body: JSON.stringify({
+        uiData:      D,
+        weekOffset:  D.weekOffset,
+        solverCache: D.solverCache || {},  // persisted preferences from previous sessions
+      }),
     });
     const data = await res.json();
 
@@ -1674,11 +1840,12 @@ async function autoSchedule(){
       return;
     }
 
-    // Cache solver state for subsequent chat requests
+    // Cache solver state for subsequent chat requests and persist to localStorage
     solverState = {
       solverData:     data.solverData     || null,
       solverSchedule: data.solverSchedule || null,
     };
+    saveSolverCache();
 
     applySchedulePatch(data.schedule);
 
@@ -1694,6 +1861,90 @@ async function autoSchedule(){
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<span style="font-size:15px">✦</span> Auto Schedule';
+  }
+}
+
+// ── Availability sync ─────────────────────────────────────────────────────
+// Called when the user confirms they want to update D.employees availability
+// after an "unavailable" chat change.
+// change: { employeeName, day, shift } where shift may be "all"
+function applyAvailabilityChange(change) {
+  const DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const dayIndex  = DAYS_FULL.indexOf(change.day);
+  if (dayIndex === -1) return;
+
+  const emp = D.employees.find(e => e.name.toLowerCase() === change.employeeName.toLowerCase());
+  if (!emp) return;
+
+  // Build the slot keys to remove
+  const keysToRemove = new Set();
+  if (change.shift === 'all') {
+    // Remove all shifts on this day
+    D.shifts.forEach(sh => keysToRemove.add(`${dayIndex}_${sh.id}`));
+  } else {
+    // Case-insensitive match against shift name
+    const sh = D.shifts.find(s =>
+      s.name.toLowerCase().includes(change.shift.toLowerCase()) ||
+      change.shift.toLowerCase().includes(s.name.toLowerCase())
+    );
+    if (sh) keysToRemove.add(`${dayIndex}_${sh.id}`);
+  }
+
+  // If availability is empty it means "all shifts available" — expand it first
+  // to all valid (open) slots for all 7 days, then remove the restricted ones.
+  let current = [...(emp.availability || [])];
+  if (current.length === 0) {
+    for (let di = 0; di < 7; di++) {
+      if (isDayClosed(di)) continue;
+      D.shifts.forEach(sh => current.push(`${di}_${sh.id}`));
+    }
+  }
+
+  emp.availability = current.filter(k => !keysToRemove.has(k));
+  save();
+  // Always re-render employees panel to reflect the change
+  if (document.getElementById('page-employees').classList.contains('active')) {
+    renderEmployees();
+  }
+}
+
+// Appends a confirmation prompt with Yes/No buttons after an unavailable change.
+function appendAvailabilityConfirm(change) {
+  const c = document.getElementById('chat-msgs');
+  const wrap = document.createElement('div');
+  wrap.className = 'cb cb-bot';
+  wrap.style.cssText = 'padding:10px 12px';
+
+  const shiftLabel = change.shift === 'all'
+    ? `all shifts on ${change.day}`
+    : `${change.shift} on ${change.day}`;
+
+  wrap.innerHTML = `
+    <div style="margin-bottom:8px;font-size:12px">
+      Also update <strong>${change.employeeName}</strong>'s availability settings
+      to permanently remove <strong>${shiftLabel}</strong>?
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-primary" onclick="confirmAvailUpdate(this, true)">Yes, update</button>
+      <button class="btn btn-sm" onclick="confirmAvailUpdate(this, false)">No, keep as is</button>
+    </div>`;
+
+  // Store the change data on the element so the button handler can access it
+  wrap._availChange = change;
+  c.appendChild(wrap);
+  c.scrollTop = c.scrollHeight;
+}
+
+function confirmAvailUpdate(btn, confirmed) {
+  const wrap = btn.closest('.cb-bot');
+  const change = wrap._availChange;
+
+  // Replace buttons with a text confirmation
+  if (confirmed) {
+    applyAvailabilityChange(change);
+    wrap.innerHTML = `<span style="font-size:12px">✓ Availability updated for ${change.employeeName}.</span>`;
+  } else {
+    wrap.innerHTML = `<span style="font-size:12px;color:#8d95a5">Availability kept unchanged.</span>`;
   }
 }
 
@@ -1722,6 +1973,7 @@ async function sendChat(){
         // incremental changes without re-running the full adapter.
         solverData:     solverState.solverData,
         solverSchedule: solverState.solverSchedule,
+        solverCache:    D.solverCache || {},  // persisted preferences from localStorage
       }),
     });
     const data = await res.json();
@@ -1730,11 +1982,29 @@ async function sendChat(){
     // Update cached solver state with the version the backend just computed
     if(data.solverData)     solverState.solverData     = data.solverData;
     if(data.solverSchedule) solverState.solverSchedule = data.solverSchedule;
+    saveSolverCache();
 
     // Apply the updated schedule to the UI
     if(data.schedule) applySchedulePatch(data.schedule);
 
+    // Refresh the preferences button label and panel if open
+    const prefs = (solverState.solverData && solverState.solverData.preferences) || [];
+    const label = document.getElementById('prefs-label');
+    if (label) label.textContent = prefs.length ? `Preferences (${prefs.length})` : 'Preferences';
+    if (prefsPanelOpen) renderPrefsPanel();
+
     addChat('bot', data.reply || 'Done.');
+
+    // For unavailable changes, ask if the user wants to update D.employees availability.
+    // We read the parsed change type from the backend response.
+    if (data.parsedChange && data.parsedChange.type === 'unavailable') {
+      const pc = data.parsedChange;
+      appendAvailabilityConfirm({
+        employeeName: pc.employee_name || '',
+        day:          pc.day          || '',
+        shift:        pc.shift        || 'all',
+      });
+    }
 
   } catch(err) {
     thinking.remove();
