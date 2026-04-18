@@ -606,6 +606,7 @@ select.fi{cursor:pointer}
               <button class="btn btn-primary" id="auto-schedule-btn" onclick="autoSchedule()" style="display:flex;align-items:center;gap:7px">
                 <span style="font-size:15px">✦</span> Auto Schedule
               </button>
+              <button class="btn" id="undo-schedule-btn" onclick="undoSchedule()" title="Undo last Auto Schedule" style="display:none">↩ Undo</button>
               <!-- Preferences: shows accumulated solver preferences with delete option -->
               <button class="btn" id="prefs-btn" onclick="togglePrefsPanel()" style="display:flex;align-items:center;gap:6px">
                 <span>📋</span> <span id="prefs-label">Preferences</span>
@@ -671,7 +672,7 @@ select.fi{cursor:pointer}
 
         <div class="page" id="page-hours">
           <div class="sec-t">Operating Hours</div>
-          <div class="sec-s">Set opening and closing times for each day. Closed days cannot receive assignments.</div>
+          <div class="sec-s">Set opening times, disable specific shifts on certain days, or mark special calendar dates as closed.</div>
           <div class="card" id="hours-content"></div>
         </div>
 
@@ -735,6 +736,7 @@ function defaultData(name,email){
     staffing:{},
     employees:[],
     schedule:{},
+    specialDates:{},
     weekOffset:0,
     chatHistory:[]
   }
@@ -779,6 +781,7 @@ function normalizeLegacyData(){
   if(!D.staffing) D.staffing={};
   if(!Array.isArray(D.employees)) D.employees=[];
   if(!D.schedule) D.schedule={};
+  if(!D.specialDates) D.specialDates={};
   if(!D.solverCache) D.solverCache={};
   // migrate old schedule format from [empId] to [{empId, role}]
   Object.keys(D.schedule).forEach(key=>{
@@ -1152,8 +1155,38 @@ function dedupeAssignments(items){
   });
   return out;
 }
-function isDayClosed(di){return D.restaurant.hours&&D.restaurant.hours[di]&&D.restaurant.hours[di].closed}
+function getActualDate(weekOffset,di){
+  const mon=getMonday(weekOffset);
+  const d=new Date(mon);d.setDate(mon.getDate()+di);return d;
+}
+function formatDateKey(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function isDayClosed(di){
+  const dk=formatDateKey(getActualDate(D.weekOffset,di));
+  if(D.specialDates&&D.specialDates[dk]){
+    const sp=D.specialDates[dk];
+    if(sp.closed!==undefined)return !!sp.closed;
+  }
+  return !!(D.restaurant.hours&&D.restaurant.hours[di]&&D.restaurant.hours[di].closed);
+}
+function isShiftDisabled(di,shiftId){
+  const sh=D.shifts.find(s=>s.id===shiftId);if(!sh)return false;
+  const sn=sh.name.toLowerCase();
+  const dk=formatDateKey(getActualDate(D.weekOffset,di));
+  if(D.specialDates&&D.specialDates[dk]){
+    const sp=D.specialDates[dk];
+    if(sp.disabledShifts&&sp.disabledShifts.length)
+      return sp.disabledShifts.map(s=>s.toLowerCase()).includes(sn);
+  }
+  const dh=D.restaurant.hours&&D.restaurant.hours[di];
+  if(dh&&dh.disabledShifts&&dh.disabledShifts.length)
+    return dh.disabledShifts.map(s=>s.toLowerCase()).includes(sn);
+  return false;
+}
 function neededForRole(sid,di,role){
+  const perDay=D.staffing[sid+'_'+role+'_d'+di];
+  if(perDay!==undefined)return perDay;
   const isWE=WEEKEND.includes(di);
   return D.staffing[sid+'_'+role+'_'+(isWE?'we':'wd')]||0
 }
@@ -1188,6 +1221,7 @@ function getEmployeeRoleType(emp,role){
 }
 function getEligibleEmployeesForRole(role,di,sid,key){
   if(isDayClosed(di))return [];
+  if(isShiftDisabled(di,sid))return [];
   const slotKey=di+'_'+sid;
   const shiftHours=shiftDurationHours(sid);
   const currentCell=getAssigned(D.weekOffset,di,sid);
@@ -1271,11 +1305,13 @@ function renderSchedule(){
     const isClosed=isDayClosed(di);
     const isWE=WEEKEND.includes(di);
     const hours=D.restaurant.hours&&D.restaurant.hours[di];
+    const hasSpecial=!!(D.specialDates&&formatDateKey(getActualDate(D.weekOffset,di))in(D.specialDates||{}));
     html+=`<th class="${isToday?'today-h':''}" style="${isClosed?'opacity:.35':''}">
       ${DAYS[di]}${isWE?' <span style="font-size:9px;font-weight:800;color:#9aa1af">WE</span>':''}
       <br><span style="font-weight:500;font-size:10px;text-transform:none;letter-spacing:0">${fmtDate(d)}</span>
       ${hours&&!isClosed?`<br><span style="font-size:9px;color:#bcc3d1;font-weight:500;text-transform:none;letter-spacing:0">${hours.open}–${hours.close}</span>`:''}
       ${isToday?'<br><span style="font-size:9px;font-weight:800">TODAY</span>':''}
+      ${hasSpecial&&!isClosed?'<br><span style="font-size:9px;font-weight:700;color:#7c5cff">★</span>':''}
     </th>`;
   }
   html+='</tr></thead><tbody>';
@@ -1283,6 +1319,7 @@ function renderSchedule(){
     html+=`<tr><td style="padding:3px 2px;vertical-align:middle;min-width:82px"><div class="shift-lbl">${sh.name}</div><div class="shift-tlbl">${sh.start}—${sh.end}</div></td>`;
     for(let di=0;di<7;di++){
       if(isDayClosed(di)){html+=`<td style="padding:3px"><div class="rest-cell">Closed</div></td>`;continue}
+      if(isShiftDisabled(di,sh.id)){html+=`<td style="padding:3px"><div class="rest-cell">Closed</div></td>`;continue}
       const assigned=getAssigned(D.weekOffset,di,sh.id);
       const needed=neededTotal(sh.id,di);
       const short=needed-assigned.length;
@@ -1377,6 +1414,7 @@ function toggleEmp(el,sid,di){
     if(curCount>=limit)return;
     if(!emp)return;
     if(isDayClosed(di)){alert('This day is closed, so no assignment can be added.');return}
+    if(isShiftDisabled(di,sid)){alert('This shift is disabled for this day. Change it in Operating Hours.');return}
     if(assigned.some(a=>a.empId===empId)){alert(emp.name+' is already assigned to another role in this same shift.');return}
     const avail=emp.availability||[];
     if(avail.length && !avail.includes(di+'_'+sid)){alert(emp.name+' is not available for this shift.');return}
@@ -1588,8 +1626,10 @@ function renderStaffingPage(){
   ensureStaffingDefaults();
   let html='';
   D.shifts.forEach(sh=>{
-    html+=`<div class="card"><div class="card-t">${sh.name} <span style="font-size:12px;color:#9ea5b3;font-weight:500">${sh.start} — ${sh.end}</span></div>
-    <div style="margin-top:12px"><table class="stf-tbl"><thead><tr><th>Role</th><th><span class="wd-badge">Weekday</span></th><th><span class="we-badge">Weekend</span></th></tr></thead><tbody>`;
+    html+=`<div class="card" style="margin-bottom:14px">
+      <div class="card-t">${sh.name} <span style="font-size:12px;color:#9ea5b3;font-weight:500">${sh.start} — ${sh.end}</span></div>
+      <div style="margin-top:12px">
+        <table class="stf-tbl"><thead><tr><th>Role</th><th><span class="wd-badge">Weekday</span></th><th><span class="we-badge">Weekend</span></th></tr></thead><tbody>`;
     D.roles.forEach(role=>{
       const kd=sh.id+'_'+role+'_wd',kw=sh.id+'_'+role+'_we';
       html+=`<tr><td>${role}</td>
@@ -1597,9 +1637,57 @@ function renderStaffingPage(){
         <td><input type="number" class="num-inp" min="0" max="30" value="${D.staffing[kw]||0}" onchange="D.staffing['${kw}']=parseInt(this.value)||0;save();renderSchedule()"></td>
       </tr>`;
     });
-    html+='</tbody></table></div></div>';
+    html+=`</tbody></table></div>
+      <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+        <button class="btn btn-sm btn-ghost" onclick="togglePerDay('${sh.id}',this)" style="font-size:12px">
+          ▸ Per-day overrides
+        </button>
+        <div id="perday-${sh.id}" style="display:none;margin-top:10px;overflow-x:auto">
+          <div style="font-size:11px;color:#9aa1af;margin-bottom:8px">
+            Override staffing for a specific day. Empty = use weekday/weekend default above.
+            <span style="background:#f0edff;color:#7c5cff;border-radius:4px;padding:1px 6px;font-weight:700">purple</span> = override active.
+          </div>
+          <table class="stf-tbl"><thead><tr><th>Role</th>`;
+    DAYS_FULL.forEach((d,di)=>{
+      const isWE=WEEKEND.includes(di);
+      html+=`<th style="font-size:11px;min-width:52px">${d.slice(0,3)}<br><span style="font-size:9px;font-weight:500;color:${isWE?'#7c5cff':'#9aa1af'}">${isWE?'WE':'WD'}</span></th>`;
+    });
+    html+='</tr></thead><tbody>';
+    D.roles.forEach(role=>{
+      html+=`<tr><td style="font-size:12px">${role}</td>`;
+      for(let di=0;di<7;di++){
+        const pk=sh.id+'_'+role+'_d'+di;
+        const hasOv=D.staffing[pk]!==undefined;
+        const isWE=WEEKEND.includes(di);
+        const fallback=D.staffing[sh.id+'_'+role+'_'+(isWE?'we':'wd')]||0;
+        html+=`<td>
+          <input type="number" class="num-inp" min="0" max="30"
+            style="width:44px;${hasOv?'border-color:#7c5cff;background:#f7f5ff':''}"
+            placeholder="${fallback}"
+            value="${hasOv?D.staffing[pk]:''}"
+            title="${hasOv?'Override: '+D.staffing[pk]:'Default: '+fallback}"
+            onchange="setPerDayStaffing('${sh.id}','${encodeURIComponent(role)}',${di},this.value)">
+        </td>`;
+      }
+      html+='</tr>';
+    });
+    html+='</tbody></table></div></div></div>';
   });
   c.innerHTML=html;
+}
+function togglePerDay(shiftId,btn){
+  const el=document.getElementById('perday-'+shiftId);
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'';
+  btn.textContent=(open?'▸':'▾')+' Per-day overrides';
+}
+function setPerDayStaffing(shiftId,roleEnc,di,val){
+  const role=decodeURIComponent(roleEnc);
+  const key=shiftId+'_'+role+'_d'+di;
+  const trimmed=val.trim();
+  if(trimmed===''){delete D.staffing[key]}
+  else{D.staffing[key]=parseInt(trimmed)||0}
+  save();renderSchedule();renderStaffingPage();
 }
 
 /* Shifts page */
@@ -1624,22 +1712,127 @@ function renderHoursPage(){
     const h={};DAYS.forEach((_,i)=>{h[i]={open:'09:00',close:'22:00',closed:false}});D.restaurant.hours=h
   }
   c.innerHTML='';
+
+  // ── Weekly schedule ─────────────────────────────────────────────────────
   DAYS.forEach((day,i)=>{
     const dh=D.restaurant.hours[i]||{open:'09:00',close:'22:00',closed:false};
-    const row=document.createElement('div');
-    row.className='day-hours-row';
-    row.innerHTML=`
+    if(!dh.disabledShifts)dh.disabledShifts=[];
+    const wrap=document.createElement('div');
+    wrap.style.cssText='border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:8px;background:#fff';
+    const row1=document.createElement('div');
+    row1.className='day-hours-row';
+    row1.style.marginBottom=dh.closed?'0':'10px';
+    row1.innerHTML=`
       <div class="day-name">${day}</div>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#888;margin-right:8px;user-select:none">
-        <input type="checkbox" id="ph-closed-${i}" ${dh.closed?'checked':''} onchange="updateHour(${i},'closed',this.checked);renderHoursPage();renderSchedule()"> Closed
+        <input type="checkbox" id="ph-closed-${i}" ${dh.closed?'checked':''} onchange="updateHour(${i},'closed',this.checked);renderHoursPage();renderSchedule()"> Closed all day
       </label>
       <div style="display:flex;align-items:center;gap:6px;${dh.closed?'opacity:.3;pointer-events:none':''}">
-        <input class="time-inp" value="${dh.open}" onchange="updateHour(${i},'open',this.value)" ${dh.closed?'disabled':''}>
+        <input class="time-inp" value="${dh.open||'09:00'}" onchange="updateHour(${i},'open',this.value)" ${dh.closed?'disabled':''}>
         <span class="time-sep">—</span>
-        <input class="time-inp" value="${dh.close}" onchange="updateHour(${i},'close',this.value)" ${dh.closed?'disabled':''}>
+        <input class="time-inp" value="${dh.close||'22:00'}" onchange="updateHour(${i},'close',this.value)" ${dh.closed?'disabled':''}>
       </div>`;
-    c.appendChild(row);
+    wrap.appendChild(row1);
+    if(!dh.closed&&D.shifts.length){
+      const row2=document.createElement('div');
+      row2.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+      const lbl=document.createElement('span');
+      lbl.style.cssText='font-size:11px;color:#9aa1af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;min-width:72px';
+      lbl.textContent='Shifts open:';
+      row2.appendChild(lbl);
+      D.shifts.forEach(sh=>{
+        const off=dh.disabledShifts.map(s=>s.toLowerCase()).includes(sh.name.toLowerCase());
+        const pill=document.createElement('button');
+        pill.className='btn btn-sm'+(off?'':' btn-primary');
+        pill.style.cssText='border-radius:999px;font-size:12px;padding:3px 12px;'+(off?'opacity:.45':'');
+        pill.textContent=sh.name;
+        pill.title=(off?'Click to re-enable':'Click to disable')+' '+sh.name+' on '+day+'s';
+        pill.onclick=()=>toggleShiftDay(i,sh.name);
+        row2.appendChild(pill);
+      });
+      wrap.appendChild(row2);
+    }
+    c.appendChild(wrap);
   });
+
+  // ── Special Date Overrides ───────────────────────────────────────────────
+  const spSec=document.createElement('div');
+  spSec.style.marginTop='22px';
+  spSec.innerHTML=`
+    <div style="font-size:13px;font-weight:800;color:#50586a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Special Date Overrides</div>
+    <div style="font-size:12px;color:#8a91a0;margin-bottom:14px">Override a specific calendar date — close for a holiday, or disable certain shifts. Overrides the weekly schedule above.</div>
+    <div id="special-dates-list"></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;padding:14px;background:#fafbff;border:1px solid var(--line);border-radius:14px">
+      <div>
+        <div style="font-size:11px;color:#9aa1af;font-weight:700;margin-bottom:4px">Date</div>
+        <input type="date" id="sp-date-inp" class="fi" style="width:155px;padding:7px 10px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#9aa1af;font-weight:700;margin-bottom:4px">Type</div>
+        <select id="sp-type-sel" class="fi" style="width:180px" onchange="renderSpTypeOptions()">
+          <option value="closed">Closed all day</option>
+          <option value="shifts">Disable specific shifts</option>
+        </select>
+      </div>
+      <div id="sp-shifts-picker" style="display:none">
+        <div style="font-size:11px;color:#9aa1af;font-weight:700;margin-bottom:4px">Shifts to disable</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="sp-shift-chks">
+          ${D.shifts.map(sh=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" value="${sh.name}"> ${sh.name}</label>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="padding:8px 14px" onclick="addSpecialDate()">+ Add Override</button>
+    </div>`;
+  c.appendChild(spSec);
+  renderSpecialDatesList();
+}
+function renderSpTypeOptions(){
+  const t=document.getElementById('sp-type-sel').value;
+  document.getElementById('sp-shifts-picker').style.display=t==='shifts'?'':'none';
+}
+function toggleShiftDay(di,shiftName){
+  if(!D.restaurant.hours[di])D.restaurant.hours[di]={open:'09:00',close:'22:00',closed:false,disabledShifts:[]};
+  const dh=D.restaurant.hours[di];
+  if(!dh.disabledShifts)dh.disabledShifts=[];
+  const idx=dh.disabledShifts.map(s=>s.toLowerCase()).indexOf(shiftName.toLowerCase());
+  if(idx>=0)dh.disabledShifts.splice(idx,1);
+  else dh.disabledShifts.push(shiftName);
+  save();renderHoursPage();renderSchedule();
+}
+function addSpecialDate(){
+  const dk=document.getElementById('sp-date-inp').value;
+  if(!dk){alert('Please pick a date.');return}
+  const type=document.getElementById('sp-type-sel').value;
+  if(!D.specialDates)D.specialDates={};
+  if(type==='closed'){
+    D.specialDates[dk]={closed:true,disabledShifts:[]};
+  } else {
+    const chk=Array.from(document.querySelectorAll('#sp-shift-chks input:checked')).map(el=>el.value);
+    if(!chk.length){alert('Please select at least one shift to disable.');return}
+    D.specialDates[dk]={closed:false,disabledShifts:chk};
+  }
+  save();renderSpecialDatesList();renderSchedule();
+  document.getElementById('sp-date-inp').value='';
+}
+function removeSpecialDate(dk){
+  delete D.specialDates[dk];save();renderSpecialDatesList();renderSchedule();
+}
+function renderSpecialDatesList(){
+  const list=document.getElementById('special-dates-list');if(!list)return;
+  const entries=Object.entries(D.specialDates||{}).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(!entries.length){
+    list.innerHTML='<div style="font-size:12px;color:#aab0bf;padding:4px 0 10px">No special dates added yet.</div>';return;
+  }
+  list.innerHTML=entries.map(([dk,cfg])=>{
+    const lbl=cfg.closed?'Closed all day':'Shifts off: '+(cfg.disabledShifts||[]).join(', ');
+    const icon=cfg.closed?'🔴':'🟡';
+    const [y,m,d]=dk.split('-');
+    const disp=parseInt(m)+'/'+parseInt(d)+'/'+y;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:#fff">'
+      +'<span style="font-size:13px;font-weight:700;min-width:90px">'+disp+'</span>'
+      +'<span style="font-size:12px;color:#555;flex:1">'+icon+' '+lbl+'</span>'
+      +'<button class="btn btn-sm btn-danger" onclick="removeSpecialDate(\x27'+dk+'\x27)">Remove</button>'
+      +'</div>';
+  }).join('');
 }
 
 /* AI Chat + Solver integration */
@@ -1647,6 +1840,7 @@ function renderHoursPage(){
 // In-memory cache of the last solver state returned by the backend.
 // Also persisted to D.solverCache in localStorage so preferences survive refresh.
 let solverState = { solverData: null, solverSchedule: null };
+let undoStack = []; // stores {schedule, solverData, solverSchedule} for undo
 
 // Load persisted solver state from localStorage on boot (called in enterApp)
 function loadSolverCache() {
@@ -1715,8 +1909,13 @@ function renderPrefsPanel() {
       ? `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:${penalty>0?'#fff3e0':'#e8f5e9'};color:${penalty>0?'#e65100':'#2e7d32'};font-weight:700;margin-left:6px">${penalty>0?'+'+penalty:penalty}</span>`
       : '';
 
+    const ts = p.addedAt ? new Date(p.addedAt) : null;
+    const tsLabel = ts ? ts.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + ts.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}) : '';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0f2f7">
-      <div style="font-size:13px;color:#222">${desc}${penaltyBadge}</div>
+      <div>
+        <div style="font-size:13px;color:#222">${desc}${penaltyBadge}</div>
+        ${tsLabel?`<div style="font-size:11px;color:#b0b7c4;margin-top:2px">Added ${tsLabel}</div>`:''}
+      </div>
       <button class="btn btn-sm btn-danger" onclick="deletePref(${i})" style="flex-shrink:0;margin-left:12px">Remove</button>
     </div>`;
   }).join('');
@@ -1752,6 +1951,7 @@ function exportScheduleCSV() {
     if (isDayClosed(di)) continue;
 
     D.shifts.forEach(sh => {
+      if(isShiftDisabled(di, sh.id)) return;
       const assigned = getAssigned(D.weekOffset, di, sh.id);
       if (!assigned.length) {
         rows.push([weekStr, dayName, dateStr, sh.name, '(unfilled)', '', '']);
@@ -1784,13 +1984,24 @@ function exportScheduleCSV() {
 }
 
 let chatOpen=false;
+let chatGreeted=false;
 function toggleChat(){
   chatOpen=!chatOpen;
   document.getElementById('chat-win').classList.toggle('open',chatOpen);
   if(chatOpen){
     document.getElementById('fab-unread').style.display='none';
     document.getElementById('chat-msgs').scrollTop=99999;
-    document.getElementById('chat-inp').focus()
+    document.getElementById('chat-inp').focus();
+    if(!chatGreeted){
+      chatGreeted=true;
+      const msgs=document.getElementById('chat-msgs');
+      if(!msgs.children.length){
+        const d=document.createElement('div');
+        d.className='cb cb-bot';
+        d.textContent='Hi! What can I help you with today? You can ask me to adjust the schedule, check who\'s working, change staffing rules, or mark a day as closed.';
+        msgs.appendChild(d);
+      }
+    }
   }
 }
 function appendBubble(type,text){
@@ -1847,13 +2058,18 @@ async function autoSchedule(){
     };
     saveSolverCache();
 
+    // Save current state to undo stack (keep last 5)
+    undoStack.push({
+      schedule:       JSON.parse(JSON.stringify(D.schedule)),
+      solverData:     solverState.solverData     ? JSON.parse(JSON.stringify(solverState.solverData))     : null,
+      solverSchedule: solverState.solverSchedule ? JSON.parse(JSON.stringify(solverState.solverSchedule)) : null,
+    });
+    if(undoStack.length > 5) undoStack.shift();
+
     applySchedulePatch(data.schedule);
 
     // Notify the chat window
-    addChat('bot', `✦ Auto Schedule complete. ${data.message}\n\nYou can now use the chat to make adjustments — e.g. "John can't work Monday morning" or use an Employee ID directly.`);
-    if(!chatOpen){
-      const u=document.getElementById('fab-unread');u.style.display='flex';u.textContent='!';
-    }
+    document.getElementById('undo-schedule-btn').style.display='';
 
   } catch(err) {
     alert('Could not reach the backend. Make sure app.py is running on ' + BACKEND_URL);
@@ -1862,6 +2078,18 @@ async function autoSchedule(){
     btn.disabled = false;
     btn.innerHTML = '<span style="font-size:15px">✦</span> Auto Schedule';
   }
+}
+
+// ── Undo Auto Schedule ────────────────────────────────────────────────────
+function undoSchedule(){
+  if(!undoStack.length){alert('Nothing to undo.');return}
+  const prev=undoStack.pop();
+  D.schedule=prev.schedule;
+  if(prev.solverData)     solverState.solverData=prev.solverData;
+  if(prev.solverSchedule) solverState.solverSchedule=prev.solverSchedule;
+  saveSolverCache();save();renderSchedule();
+  addChat('bot','↩ Schedule restored to previous state.');
+  if(!undoStack.length) document.getElementById('undo-schedule-btn').style.display='none';
 }
 
 // ── Availability sync ─────────────────────────────────────────────────────
@@ -1950,12 +2178,99 @@ function confirmAvailUpdate(btn, confirmed) {
 
 // ── Chat send ──────────────────────────────────────────────────────────────
 // Sends the user message to POST /api/chat, which calls the LLM and solver.
+// Quick client-side schedule query — no backend call needed
+function tryLocalScheduleQuery(msg){
+  const lower=msg.toLowerCase().trim();
+  // Detect patterns like "who's working X", "who is on X", "is NAME working"
+  const whoRe=/who(?:'s| is)(?: working| on| scheduled)?\s+(.+)/i;
+  const isWorkingRe=/is\s+(\w+)\s+working\s*(.*)?/i;
+  const shiftsForRe=/what(?:'s| are)(?: the)? shifts(?: for)?\s+(\w+)/i;
+
+  const DAYS_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+  function findDay(str){return DAYS_FULL.find(d=>str.toLowerCase().includes(d.toLowerCase()))||null}
+  function findShift(str){
+    const sh=D.shifts.find(s=>str.toLowerCase().includes(s.name.toLowerCase()));
+    return sh?sh.name:null;
+  }
+  function findEmp(str){
+    const words=str.split(/\s+/);
+    for(const w of words){
+      const e=D.employees.find(e=>e.name.toLowerCase().startsWith(w.toLowerCase())&&w.length>2);
+      if(e)return e;
+    }
+    return null;
+  }
+  function describeCell(di,sh){
+    const assigned=getAssigned(D.weekOffset,di,sh.id);
+    if(!assigned.length)return null;
+    return assigned.map(a=>{
+      const e=D.employees.find(x=>x.id===a.empId);
+      return (e?e.name:'?')+' ('+a.role+')';
+    }).join(', ');
+  }
+
+  // "who's working Saturday evening?"
+  const wm=lower.match(whoRe);
+  if(wm){
+    const rest=wm[1];
+    const day=findDay(rest);
+    const shift=findShift(rest);
+    if(day){
+      const di=DAYS_FULL.indexOf(day);
+      const lines=[];
+      const shifts=shift?D.shifts.filter(s=>s.name.toLowerCase()===shift.toLowerCase()):D.shifts;
+      shifts.forEach(sh=>{
+        if(isShiftDisabled(di,sh.id)||isDayClosed(di))return;
+        const desc=describeCell(di,sh);
+        if(desc)lines.push(sh.name+': '+desc);
+      });
+      if(!lines.length)return 'Nobody is scheduled for '+(shift||'any shift')+' on '+day+'.';
+      return day+(shift?' '+shift:'')+' →\n'+lines.join('\n');
+    }
+  }
+
+  // "is Alice working Monday?"
+  const im=lower.match(isWorkingRe);
+  if(im){
+    const empName=im[1];
+    const rest=(im[2]||'');
+    const emp=D.employees.find(e=>e.name.toLowerCase().startsWith(empName.toLowerCase()));
+    if(emp){
+      const day=findDay(rest);
+      const di=day?DAYS_FULL.indexOf(day):-1;
+      const results=[];
+      for(let d=0;d<7;d++){
+        if(di>=0&&d!==di)continue;
+        if(isDayClosed(d))continue;
+        D.shifts.forEach(sh=>{
+          if(isShiftDisabled(d,sh.id))return;
+          const assigned=getAssigned(D.weekOffset,d,sh.id);
+          const a=assigned.find(x=>x.empId===emp.id);
+          if(a)results.push(DAYS_FULL[d]+' '+sh.name+' as '+a.role);
+        });
+      }
+      if(!results.length)return emp.name+' has no shifts'+(day?' on '+day:' this week')+'.';
+      return emp.name+' is working:\n'+results.join('\n');
+    }
+  }
+
+  return null; // not a recognisable query
+}
+
 async function sendChat(){
   const inp = document.getElementById('chat-inp');
   const msg = inp.value.trim();
   if(!msg) return;
   inp.value = '';
   addChat('user', msg);
+
+  // Try to answer schedule queries locally before hitting the backend
+  const localAnswer = tryLocalScheduleQuery(msg);
+  if(localAnswer){
+    addChat('bot', localAnswer);
+    return;
+  }
 
   const thinking = appendBubble('think', '');
   thinking.className = 'cb cb-think';
@@ -1984,8 +2299,29 @@ async function sendChat(){
     if(data.solverSchedule) solverState.solverSchedule = data.solverSchedule;
     saveSolverCache();
 
+    // Apply any UI data mutations the backend made (staffing, specialDates, hours)
+    if(data.uiDataPatch){
+      const patch=data.uiDataPatch;
+      if(patch.staffing)    Object.assign(D.staffing, patch.staffing);
+      if(patch.specialDates) D.specialDates=patch.specialDates;
+      if(patch.restaurant&&patch.restaurant.hours) D.restaurant.hours=patch.restaurant.hours;
+      save();
+      // Re-render hours page if open
+      if(document.getElementById('page-hours').classList.contains('active')) renderHoursPage();
+      if(document.getElementById('page-staffing').classList.contains('active')) renderStaffingPage();
+    }
+
     // Apply the updated schedule to the UI
     if(data.schedule) applySchedulePatch(data.schedule);
+
+    // Stamp any new preferences with addedAt timestamp
+    if(data.solverData && data.solverData.preferences){
+      const prevPrefs = (solverState.solverData && solverState.solverData.preferences) || [];
+      const prevLen   = prevPrefs.length;
+      data.solverData.preferences.forEach((p,i)=>{
+        if(i >= prevLen && !p.addedAt) p.addedAt = new Date().toISOString();
+      });
+    }
 
     // Refresh the preferences button label and panel if open
     const prefs = (solverState.solverData && solverState.solverData.preferences) || [];

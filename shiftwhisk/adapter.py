@@ -64,12 +64,58 @@ def _is_weekend(day_index: int) -> bool:
     return day_index in WEEKEND_INDICES
 
 
-def _day_is_closed(ui_data: Dict[str, Any], day_index: int) -> bool:
-    hours = (ui_data.get("restaurant") or {}).get("hours") or {}
+def _day_is_closed(
+    ui_data: Dict[str, Any],
+    day_index: int,
+    week_offset: int = 0,
+) -> bool:
+    import datetime
+    special = ui_data.get("specialDates") or {}
+    if special:
+        try:
+            today  = datetime.date.today()
+            monday = today - datetime.timedelta(days=today.weekday()) + datetime.timedelta(weeks=week_offset)
+            actual = monday + datetime.timedelta(days=day_index)
+            dk     = actual.strftime("%Y-%m-%d")
+            if dk in special and special[dk].get("closed") is not None:
+                return bool(special[dk]["closed"])
+        except Exception:
+            pass
+    hours     = (ui_data.get("restaurant") or {}).get("hours") or {}
     day_hours = hours.get(str(day_index)) or hours.get(day_index)
     if day_hours is None:
         return False
     return bool(day_hours.get("closed", False))
+
+
+def _is_shift_disabled(
+    ui_data: Dict[str, Any],
+    day_index: int,
+    shift_name: str,
+    week_offset: int = 0,
+) -> bool:
+    import datetime
+    sl = shift_name.lower()
+    special = ui_data.get("specialDates") or {}
+    if special:
+        try:
+            today  = datetime.date.today()
+            monday = today - datetime.timedelta(days=today.weekday()) + datetime.timedelta(weeks=week_offset)
+            actual = monday + datetime.timedelta(days=day_index)
+            dk     = actual.strftime("%Y-%m-%d")
+            if dk in special:
+                ds = [s.lower() for s in (special[dk].get("disabledShifts") or [])]
+                if ds:
+                    return sl in ds
+        except Exception:
+            pass
+    hours     = (ui_data.get("restaurant") or {}).get("hours") or {}
+    day_hours = hours.get(str(day_index)) or hours.get(day_index)
+    if day_hours:
+        ds = [s.lower() for s in (day_hours.get("disabledShifts") or [])]
+        if sl in ds:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -146,16 +192,18 @@ def ui_to_solver(
         all_avail  = len(avail_keys) == 0  # empty list = no restrictions
 
         for di in range(7):
-            if _day_is_closed(ui_data, di):
-                continue  # closed days produce no availability rows
+            if _day_is_closed(ui_data, di, week_offset):
+                continue
             day_name = DAYS[di]
             for sh in shifts:
+                if _is_shift_disabled(ui_data, di, sh["name"], week_offset):
+                    continue
                 slot_key  = f"{di}_{sh['id']}"
                 is_avail  = all_avail or (slot_key in avail_keys)
                 availability.append({
                     "employee_id": solver_id,
                     "day":         day_name,
-                    "shift":       sh["name"],   # solver uses shift name, not id
+                    "shift":       sh["name"],
                     "available":   is_avail,
                 })
 
@@ -165,12 +213,14 @@ def ui_to_solver(
     shift_requirements: List[Dict[str, Any]] = []
 
     for di in range(7):
-        if _day_is_closed(ui_data, di):
+        if _day_is_closed(ui_data, di, week_offset):
             continue
         day_name  = DAYS[di]
         suffix    = "we" if _is_weekend(di) else "wd"
 
         for sh in shifts:
+            if _is_shift_disabled(ui_data, di, sh["name"], week_offset):
+                continue
             for role in roles:
                 staffing_key   = f"{sh['id']}_{role}_{suffix}"
                 required_count = int(staffing.get(staffing_key, 0))
@@ -178,7 +228,6 @@ def ui_to_solver(
                     shift_requirements.append({
                         "day":            day_name,
                         "shift":          sh["name"],
-                        # Lowercase role to match the normalised skills list on staff records
                         "role":           role.lower(),
                         "required_count": required_count,
                     })

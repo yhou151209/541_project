@@ -600,6 +600,24 @@ def update_schedule(data, existing_schedule, change):
         add_preference(updated_data, {"type":"avoid_back_to_back","employee_name":emp["name"],"penalty":penalty})
         return solve_schedule(updated_data, preferred_schedule=existing_schedule), updated_data
 
+    if change_type == "remove_from_shift":
+        employee_name = change["employee_name"].strip()
+        day           = change["day"].strip()
+        shift         = change["shift"].strip()
+        emp    = resolve_employee_name_fuzzy(data["staff"], employee_name)
+        # Simply mark them unavailable for this specific slot and re-solve.
+        # The solver will drop them from that cell and fill with someone else.
+        try:
+            norm_shift = normalize_shift(shift)
+        except ValueError:
+            known = sorted({r["shift"] for r in data["shift_requirements"]})
+            norm_shift = next(
+                (s for s in known if shift.lower() in s.lower() or s.lower() in shift.lower()),
+                shift
+            )
+        set_availability(updated_data, emp["id"], day, norm_shift, False)
+        return solve_schedule(updated_data, preferred_schedule=existing_schedule), updated_data
+
     if change_type in {"avoid_shift", "shift_preference"}:
         emp     = resolve_employee_name_fuzzy(data["staff"], change["employee_name"].strip())
         penalty = clamp_preference_penalty(int(change.get("penalty", 3)))
@@ -608,6 +626,12 @@ def update_schedule(data, existing_schedule, change):
         if change.get("shift"): pref["shift"] = normalize_shift(change["shift"].strip())
         add_preference(updated_data, pref)
         return solve_schedule(updated_data, preferred_schedule=existing_schedule), updated_data
+
+    # These three types mutate ui_data directly — the caller (app.py)
+    # writes the result back to D and re-runs the solver via generate_schedule.
+    # update_schedule signals this with a special sentinel return value.
+    if change_type in {"set_staffing_override","set_day_closed","set_shift_disabled"}:
+        return None, change   # caller handles
 
     raise ValueError(f"Unknown change type: '{change_type}'")
 
@@ -639,6 +663,19 @@ def generate_explanation(data_before, old_schedule, new_schedule, change):
             lines.append(f"{row['employee_name']} was assigned as {row['role']} ({reason}).")
         if not replacements:
             lines.append("The schedule was re-optimised with the remaining available staff.")
+
+    elif change_type == "remove_from_shift":
+        employee_name = change["employee_name"]
+        day           = change["day"]
+        shift         = change.get("shift", "")
+        lines.append(f"{employee_name} was removed from {day} {shift}.")
+        replacements = [r for r in added_rows
+                        if r["day"].lower() == day.lower()
+                        and r["shift"].lower() == shift.lower()]
+        for row in replacements:
+            lines.append(f"{row['employee_name']} was assigned as {row['role']} to fill the gap.")
+        if not replacements:
+            lines.append("The slot was left unfilled or re-optimised with available staff.")
 
     elif change_type == "direct_swap":
         lines.append(f"Swapped {change['employee_name_1']} ({change['day_1']} {change['shift_1']}) "
@@ -758,6 +795,63 @@ JSON: {{"type":"shift_preference","employee_name":"Alice","shift":"morning","pen
 User: "Prefer Brian for Saturday evening"
 JSON: {{"type":"shift_preference","employee_name":"Brian","day":"Saturday","shift":"evening","penalty":-4}}
 
+5. remove_from_shift  — remove a specific person from a specific shift
+   {{"type":"remove_from_shift","employee_name":"NAME","day":"DAY","shift":"SHIFT"}}
+
+6. schedule_query  — answer a question about who is working; no solver call needed
+   {{"type":"schedule_query","day":"DAY","shift":"SHIFT or null","employee_name":"NAME or null"}}
+   Use this for: "who's working Saturday evening?", "what shifts does Alice have?", "is Bob working Monday?"
+
+7. set_staffing_override  — change required staff count for a specific day+shift+role
+   {{"type":"set_staffing_override","day":"DAY or null (null=all weekdays or all weekends)","shift":"SHIFT","role":"ROLE","count":N}}
+   DAY must be a full weekday name OR null. null means apply to the wd/we global rule, not a per-day override.
+   Use for: "Sunday Morning needs only 1 Server", "set Friday Evening Cook to 2"
+
+8. set_day_closed  — mark a specific calendar date as closed (holiday / one-off)
+   {{"type":"set_day_closed","date":"YYYY-MM-DD","closed":true}}
+   For "Christmas" use 12-25, "New Year" use 01-01, "Thanksgiving" use the correct Thursday.
+   Today's date is provided in the system context. Compute relative dates ("next Wednesday") from today.
+   Use for: "close Christmas day", "next Friday is closed", "reopen December 26"
+
+9. set_shift_disabled  — disable (or re-enable) a shift on a specific weekday (recurring weekly)
+   {{"type":"set_shift_disabled","day_index":0-6,"shift":"SHIFT","disabled":true}}
+   day_index: Monday=0 Tuesday=1 Wednesday=2 Thursday=3 Friday=4 Saturday=5 Sunday=6
+   Use for: "don't open Morning on Sundays", "re-enable Evening on Saturdays"
+
+EXAMPLES (continued):
+User: "Remove Alice from Tuesday morning"
+JSON: {{"type":"remove_from_shift","employee_name":"Alice","day":"Tuesday","shift":"morning"}}
+
+User: "Take John off Friday evening"
+JSON: {{"type":"remove_from_shift","employee_name":"John","day":"Friday","shift":"evening"}}
+
+User: "Who's working Saturday evening?"
+JSON: {{"type":"schedule_query","day":"Saturday","shift":"evening","employee_name":null}}
+
+User: "What shifts does Maria have this week?"
+JSON: {{"type":"schedule_query","day":null,"shift":null,"employee_name":"Maria"}}
+
+User: "Is Alice working Monday?"
+JSON: {{"type":"schedule_query","day":"Monday","shift":null,"employee_name":"Alice"}}
+
+User: "Sunday Morning only needs 1 Server"
+JSON: {{"type":"set_staffing_override","day":"Sunday","shift":"Morning","role":"Server","count":1}}
+
+User: "Set Friday Evening to 3 Cooks"
+JSON: {{"type":"set_staffing_override","day":"Friday","shift":"Evening","role":"Cook","count":3}}
+
+User: "Close Christmas day"
+JSON: {{"type":"set_day_closed","date":"2025-12-25","closed":true}}
+
+User: "Next Wednesday is closed"
+JSON: {{"type":"set_day_closed","date":"NEXT_WEDNESDAY_DATE","closed":true}}
+
+User: "Don't open Morning on Sundays"
+JSON: {{"type":"set_shift_disabled","day_index":6,"shift":"Morning","disabled":true}}
+
+User: "Re-enable Morning on Sundays"
+JSON: {{"type":"set_shift_disabled","day_index":6,"shift":"Morning","disabled":false}}
+
 If unclear or missing info: {{"error":"REASON"}}"""
 
 
@@ -852,7 +946,9 @@ def parse_user_request(user_input, data, current_schedule):
 
 def _validate_change(change, staff_names):
     valid_types = {"unavailable","direct_swap","avoid_back_to_back",
-                   "back_to_back_preference","avoid_shift","shift_preference"}
+                   "back_to_back_preference","avoid_shift","shift_preference",
+                   "remove_from_shift","schedule_query",
+                   "set_staffing_override","set_day_closed","set_shift_disabled"}
     t = change.get("type", "")
     if t not in valid_types:
         raise ValueError(f"Unknown change type: '{t}'")
@@ -870,7 +966,11 @@ def _validate_change(change, staff_names):
             try:    change[f] = normalize_day(d)
             except: raise ValueError(f"Invalid day: '{d}'")
 
-    if t == "unavailable":
+    if t == "remove_from_shift":
+        ck_name("employee_name"); ck_day("day")
+    elif t in {"set_staffing_override","set_day_closed","set_shift_disabled"}:
+        pass  # validated downstream; no employee name required
+    elif t == "unavailable":
         ck_name("employee_name"); ck_day("day")
     elif t == "direct_swap":
         ck_name("employee_name_1"); ck_name("employee_name_2")

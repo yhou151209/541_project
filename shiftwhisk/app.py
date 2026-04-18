@@ -179,8 +179,12 @@ def chat():
             )
 
     # --- Parse the natural-language message ---
+    # Inject today's date so the LLM can resolve relative dates like "next Wednesday"
+    import datetime as _dt
+    today_str = _dt.date.today().strftime("%Y-%m-%d")
+    augmented_message = f"[Today is {today_str}] {message}"
     try:
-        change = parse_user_request(message, solver_data, solver_sched)
+        change = parse_user_request(augmented_message, solver_data, solver_sched)
     except (ValueError, RuntimeError) as exc:
         # Return a friendly bot reply rather than an HTTP error so the
         # chat window can display it directly.
@@ -191,12 +195,179 @@ def chat():
             "solverSchedule": solver_sched,
         })
 
+    # --- Schedule query: answer directly without running the solver ---
+    if change.get("type") == "schedule_query":
+        query_day   = change.get("day")
+        query_shift = change.get("shift")
+        query_name  = change.get("employee_name")
+
+        hits = [r for r in solver_sched if
+            (not query_day   or r["day"].lower()           == query_day.lower()) and
+            (not query_shift or r["shift"].lower()          == query_shift.lower()) and
+            (not query_name  or r["employee_name"].lower()  == query_name.lower())]
+
+        if not hits:
+            scope = " ".join(filter(None, [query_day, query_shift]))
+            if query_name:
+                where = (" on " + scope) if scope else " this week"
+                reply = query_name + " has no assignments" + where + "."
+            else:
+                where = (" for " + scope) if scope else ""
+                reply = "Nobody is scheduled" + where + "."
+        else:
+            from collections import defaultdict
+            if query_name:
+                lines = [query_name + "'s assignments:"]
+                for r in sorted(hits, key=lambda x: (x["day"], x["shift"])):
+                    lines.append("  - " + r["day"] + " " + r["shift"] + " as " + r["role"])
+                reply = chr(10).join(lines)
+            else:
+                grouped = defaultdict(list)
+                for r in hits:
+                    grouped[(r["day"], r["shift"])].append(r["employee_name"] + " (" + r["role"] + ")")
+                lines = []
+                for (day, shift), people in sorted(grouped.items()):
+                    lines.append(day + " " + shift + ": " + ", ".join(people))
+                reply = chr(10).join(lines)
+
+        return jsonify({
+            "reply":          reply,
+            "schedule":       ui_data.get("schedule", {}),
+            "solverData":     solver_data,
+            "solverSchedule": solver_sched,
+        })
+
+    # --- Handle UI-mutation types (no solver rerun via update_schedule) ---
+    change_type = change.get("type", "")
+
+    if change_type == "set_staffing_override":
+        # Write per-day or global staffing rule back into ui_data, then re-solve
+        day_name  = change.get("day")        # full weekday or null
+        shift_name= change.get("shift","")
+        role      = change.get("role","")
+        count     = int(change.get("count", 0))
+
+        # Find shift id by name (case-insensitive)
+        shifts = ui_data.get("shifts", [])
+        sh = next((s for s in shifts if s["name"].lower() == shift_name.lower()), None)
+        if not sh:
+            return jsonify({"reply": f"Shift '{shift_name}' not found.", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched})
+
+        staffing = ui_data.setdefault("staffing", {})
+        DAYS_FULL = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+        WEEKEND   = {5, 6}
+
+        if day_name and day_name in DAYS_FULL:
+            di = DAYS_FULL.index(day_name)
+            key = f"{sh['id']}_{role}_d{di}"
+            staffing[key] = count
+            reply_txt = f"Set {day_name} {shift_name} {role} to {count}."
+        else:
+            # Apply to both wd and we global rules
+            staffing[f"{sh['id']}_{role}_wd"] = count
+            staffing[f"{sh['id']}_{role}_we"] = count
+            reply_txt = f"Set {shift_name} {role} to {count} for all days."
+
+        # Re-run solver with updated ui_data
+        try:
+            new_solver_data  = ui_to_solver(ui_data, week_offset)
+            new_sched        = generate_schedule(new_solver_data)
+        except ValueError as exc:
+            return jsonify({"reply": f"Staffing updated but solver failed: {exc}", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched})
+
+        _solver_data     = new_solver_data
+        _solver_schedule = new_sched
+        new_cells = solver_to_ui(new_sched, ui_data, week_offset)
+        patched   = merge_schedule(ui_data.get("schedule", {}), new_cells, week_offset)
+
+        return jsonify({
+            "reply":            reply_txt + " Schedule regenerated.",
+            "schedule":         patched,
+            "solverData":       new_solver_data,
+            "solverSchedule":   new_sched,
+            "uiDataPatch":      {"staffing": staffing},
+        })
+
+    if change_type == "set_day_closed":
+        date_str = change.get("date","")
+        closed   = bool(change.get("closed", True))
+        if not date_str:
+            return jsonify({"reply": "No date provided.", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched})
+
+        special = ui_data.setdefault("specialDates", {})
+        if closed:
+            special[date_str] = {"closed": True, "disabledShifts": []}
+            reply_txt = f"{date_str} marked as closed."
+        else:
+            if date_str in special:
+                del special[date_str]
+            reply_txt = f"{date_str} reopened."
+
+        # Re-run solver (closed date removes requirements for that day)
+        try:
+            new_solver_data  = ui_to_solver(ui_data, week_offset)
+            new_sched        = generate_schedule(new_solver_data)
+        except ValueError as exc:
+            return jsonify({"reply": reply_txt + f" (Solver skipped: {exc})", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched, "uiDataPatch": {"specialDates": special}})
+
+        _solver_data     = new_solver_data
+        _solver_schedule = new_sched
+        new_cells = solver_to_ui(new_sched, ui_data, week_offset)
+        patched   = merge_schedule(ui_data.get("schedule", {}), new_cells, week_offset)
+
+        return jsonify({
+            "reply":          reply_txt + " Schedule regenerated.",
+            "schedule":       patched,
+            "solverData":     new_solver_data,
+            "solverSchedule": new_sched,
+            "uiDataPatch":    {"specialDates": special},
+        })
+
+    if change_type == "set_shift_disabled":
+        di       = int(change.get("day_index", 0))
+        shift_nm = change.get("shift","")
+        disabled = bool(change.get("disabled", True))
+
+        hours = ui_data.setdefault("restaurant", {}).setdefault("hours", {})
+        dh    = hours.setdefault(str(di), {"open":"09:00","close":"22:00","closed":False,"disabledShifts":[]})
+        if "disabledShifts" not in dh:
+            dh["disabledShifts"] = []
+
+        existing_ds = [s for s in dh["disabledShifts"] if s.lower() != shift_nm.lower()]
+        if disabled:
+            existing_ds.append(shift_nm)
+        dh["disabledShifts"] = existing_ds
+
+        DAYS_FULL = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+        day_name  = DAYS_FULL[di] if 0 <= di <= 6 else str(di)
+        action    = "disabled" if disabled else "re-enabled"
+        reply_txt = f"{shift_nm} on {day_name}s {action}."
+
+        try:
+            new_solver_data  = ui_to_solver(ui_data, week_offset)
+            new_sched        = generate_schedule(new_solver_data)
+        except ValueError as exc:
+            return jsonify({"reply": reply_txt + f" (Solver skipped: {exc})", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched, "uiDataPatch": {"restaurant": ui_data.get("restaurant",{})}})
+
+        _solver_data     = new_solver_data
+        _solver_schedule = new_sched
+        new_cells = solver_to_ui(new_sched, ui_data, week_offset)
+        patched   = merge_schedule(ui_data.get("schedule", {}), new_cells, week_offset)
+
+        return jsonify({
+            "reply":          reply_txt + " Schedule regenerated.",
+            "schedule":       patched,
+            "solverData":     new_solver_data,
+            "solverSchedule": new_sched,
+            "uiDataPatch":    {"restaurant": ui_data.get("restaurant",{})},
+        })
+
     # --- Apply the change via the solver ---
     try:
         new_sched, new_data = update_schedule(solver_data, solver_sched, change)
     except ValueError as exc:
         return jsonify({
-            "reply":         f"Could not apply change: {exc}",
+            "reply":         "Could not apply change: " + str(exc),
             "schedule":      ui_data.get("schedule", {}),
             "solverData":    solver_data,
             "solverSchedule": solver_sched,
