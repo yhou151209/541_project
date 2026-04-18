@@ -114,41 +114,31 @@ Open `http://localhost:3000`
 
 ---
 
-## Known Limitations
+# Known Limitations
 
-### Scheduling
-- **No per-week schedule control** — operating hours apply globally; no way to mark a specific date as closed
-- **No per-day shift control** — can't disable just Sunday morning without affecting all weeks (workaround: set all Sunday morning staffing counts to 0)
-- **No special date staffing** — can't add extra staff for specific dates like holidays or events
+## Scheduling
+- **No event-based staffing boost** — can't temporarily increase headcount for a specific date (e.g. New Year's Eve needs 5 Servers instead of 3); workaround is to manually edit Staffing Rules
 - **Solver timeout 15s** — large rosters may return a suboptimal schedule
 
-### LLM
-- **Only 4 change types supported** — `unavailable`, `direct_swap`, `avoid_back_to_back`, `shift_preference`; requests like "remove someone from Tuesday" or "who's working Saturday?" are not handled
-- **No conversation memory** — each chat message is independent
+## LLM
+- **No conversation memory** — each chat message is independent; context doesn't carry between messages
 - **Groq rate limits** — free tier has request limits; no retry logic
 
-### Data
+## Data
 - **localStorage only** — clearing browser data or switching computers loses everything
 - **No PDF export** — CSV only; no print-friendly view
-- **No undo for Auto Schedule** — overwrites current week with no rollback
 
 ---
 
-## Backlog (next to build)
+# Backlog (next to build)
 
-### High Priority
-- **Per-day shift configuration** — disable specific shifts on specific days of the week
-- **Special date overrides** — mark a date as closed or add extra staffing for events
-- **"Remove from shift" chat command** — `"remove Alice from Tuesday morning"`
-- **Schedule query via chat** — `"who's working Saturday evening?"`
-
-### Medium Priority
-- **PDF / print export** — manager-friendly printable schedule
-- **Undo Auto Schedule** — save previous state before overwriting
-- **Preference history** — show when each preference was added
-
-### Low Priority
+## High Priority
 - **Multi-device sync** — replace localStorage with a real database (Firebase recommended)
+
+## Medium Priority
+- **Event staffing boost** — chat command to temporarily increase headcount on a specific date
 - **Employee self-service** — employees view their own schedule and set availability
 - **Notifications** — notify employees when schedule is published or changed
+
+## Low Priority
 - **Multi-manager support** — role-based access control
