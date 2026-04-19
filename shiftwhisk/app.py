@@ -179,10 +179,19 @@ def chat():
             )
 
     # --- Parse the natural-language message ---
-    # Inject today's date so the LLM can resolve relative dates like "next Wednesday"
+    # Inject today + explicit next-weekday dates so LLM never miscalculates
     import datetime as _dt
-    today_str = _dt.date.today().strftime("%Y-%m-%d")
-    augmented_message = f"[Today is {today_str}] {message}"
+    _today = _dt.date.today()
+    today_str = _today.strftime("%Y-%m-%d")
+    today_dow = _today.strftime("%A")
+    _day_names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    _next_days = {}
+    for _i, _dn in enumerate(_day_names):
+        _delta = (_i - _today.weekday()) % 7
+        _delta = _delta if _delta > 0 else 7
+        _next_days[_dn] = (_today + _dt.timedelta(days=_delta)).strftime("%Y-%m-%d")
+    _next_str = ", ".join(f"next {k}={v}" for k, v in _next_days.items())
+    augmented_message = f"[Today is {today_str} ({today_dow}). {_next_str}] {message}"
     try:
         change = parse_user_request(augmented_message, solver_data, solver_sched)
     except (ValueError, RuntimeError) as exc:
@@ -360,6 +369,51 @@ def chat():
             "solverData":     new_solver_data,
             "solverSchedule": new_sched,
             "uiDataPatch":    {"restaurant": ui_data.get("restaurant",{})},
+        })
+
+    if change_type == "set_date_staffing":
+        date_str  = change.get("date", "")
+        shift_nm  = change.get("shift", "")
+        role      = change.get("role", "")
+        count     = int(change.get("count", 0))
+
+        if not date_str:
+            return jsonify({"reply": "No date provided.", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched})
+
+        # Store as a special date with per-shift-role staffing overrides
+        special = ui_data.setdefault("specialDates", {})
+        if date_str not in special:
+            special[date_str] = {"closed": False, "disabledShifts": [], "staffingOverrides": {}}
+        if "staffingOverrides" not in special[date_str]:
+            special[date_str]["staffingOverrides"] = {}
+
+        override_key = shift_nm + "|" + role
+        special[date_str]["staffingOverrides"][override_key] = count
+
+        shifts = ui_data.get("shifts", [])
+        sh = next((s for s in shifts if s["name"].lower() == shift_nm.lower()), None)
+        if not sh:
+            return jsonify({"reply": "Shift " + shift_nm + " not found.", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched})
+
+        reply_txt = "Set " + shift_nm + " " + role + " to " + str(count) + " on " + date_str + "."
+
+        try:
+            new_solver_data = ui_to_solver(ui_data, week_offset)
+            new_sched_gen   = generate_schedule(new_solver_data)
+        except ValueError as exc:
+            return jsonify({"reply": reply_txt + " (Solver skipped: " + str(exc) + ")", "schedule": ui_data.get("schedule",{}), "solverData": solver_data, "solverSchedule": solver_sched, "uiDataPatch": {"specialDates": special}})
+
+        _solver_data     = new_solver_data
+        _solver_schedule = new_sched_gen
+        new_cells = solver_to_ui(new_sched_gen, ui_data, week_offset)
+        patched   = merge_schedule(ui_data.get("schedule", {}), new_cells, week_offset)
+
+        return jsonify({
+            "reply":          reply_txt + " Schedule regenerated.",
+            "schedule":       patched,
+            "solverData":     new_solver_data,
+            "solverSchedule": new_sched_gen,
+            "uiDataPatch":    {"specialDates": special},
         })
 
     # --- Apply the change via the solver ---

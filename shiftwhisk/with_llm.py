@@ -588,9 +588,23 @@ def update_schedule(data, existing_schedule, change):
             raise ValueError(f"{name_2} lacks skill '{role_1}' for the swap.")
         set_availability(updated_data, emp_1["id"], day_2, shift_2, True)
         set_availability(updated_data, emp_2["id"], day_1, shift_1, True)
+        # Match shift/role names exactly as in shift_requirements to avoid case mismatch
+        def exact_shift(name):
+            norm = normalize_shift(name)
+            for req in updated_data["shift_requirements"]:
+                if req["shift"].lower() == norm.lower():
+                    return req["shift"]
+            return norm
+
+        def exact_role(name):
+            for req in updated_data["shift_requirements"]:
+                if req["role"].lower() == name.lower():
+                    return req["role"]
+            return name.lower()
+
         forced = [
-            (emp_1["id"], normalize_day(day_2), normalize_shift(shift_2), role_2),
-            (emp_2["id"], normalize_day(day_1), normalize_shift(shift_1), role_1),
+            (emp_1["id"], normalize_day(day_2), exact_shift(shift_2), exact_role(role_2)),
+            (emp_2["id"], normalize_day(day_1), exact_shift(shift_1), exact_role(role_1)),
         ]
         return solve_schedule(updated_data, preferred_schedule=existing_schedule, forced_assignments=forced), updated_data
 
@@ -769,6 +783,7 @@ Supported types:
 4. shift_preference  (penalty -10 to 10; omit day or shift if not specified)
    positive=avoid, negative=prefer
    {{"type":"shift_preference","employee_name":"NAME","day":"DAY","shift":"SHIFT","penalty":3}}
+   IMPORTANT: Always return exactly ONE JSON object. If "weekend" is mentioned, omit "day" entirely — do NOT return two objects for Saturday and Sunday separately.
 
 EXAMPLES:
 User: "Julia cannot work on Monday"
@@ -795,6 +810,9 @@ JSON: {{"type":"shift_preference","employee_name":"Alice","shift":"morning","pen
 User: "Prefer Brian for Saturday evening"
 JSON: {{"type":"shift_preference","employee_name":"Brian","day":"Saturday","shift":"evening","penalty":-4}}
 
+User: "Prefer Brian for weekend evening"
+JSON: {{"type":"shift_preference","employee_name":"Brian","shift":"evening","penalty":-4}}
+
 5. remove_from_shift  — remove a specific person from a specific shift
    {{"type":"remove_from_shift","employee_name":"NAME","day":"DAY","shift":"SHIFT"}}
 
@@ -817,6 +835,11 @@ JSON: {{"type":"shift_preference","employee_name":"Brian","day":"Saturday","shif
    {{"type":"set_shift_disabled","day_index":0-6,"shift":"SHIFT","disabled":true}}
    day_index: Monday=0 Tuesday=1 Wednesday=2 Thursday=3 Friday=4 Saturday=5 Sunday=6
    Use for: "don't open Morning on Sundays", "re-enable Evening on Saturdays"
+
+10. set_date_staffing  — temporarily boost or reduce headcount on a specific calendar date
+   {{"type":"set_date_staffing","date":"YYYY-MM-DD","shift":"SHIFT","role":"ROLE","count":N}}
+   Use for: "New Year's Eve needs 5 Servers", "add 2 extra Cooks on Dec 31"
+   Today's date is provided in the message. Compute relative dates from today.
 
 EXAMPLES (continued):
 User: "Remove Alice from Tuesday morning"
@@ -851,6 +874,12 @@ JSON: {{"type":"set_shift_disabled","day_index":6,"shift":"Morning","disabled":t
 
 User: "Re-enable Morning on Sundays"
 JSON: {{"type":"set_shift_disabled","day_index":6,"shift":"Morning","disabled":false}}
+
+User: "New Year's Eve needs 5 Servers for Evening"
+JSON: {{"type":"set_date_staffing","date":"2025-12-31","shift":"Evening","role":"Server","count":5}}
+
+User: "Add 2 extra Cooks on Christmas"
+JSON: {{"type":"set_date_staffing","date":"2025-12-25","shift":"Evening","role":"Cook","count":2}}
 
 If unclear or missing info: {{"error":"REASON"}}"""
 
@@ -927,16 +956,31 @@ def parse_user_request(user_input, data, current_schedule):
 
     try:
         result = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"LLM returned non-JSON:\n{raw}\nError: {e}")
+    except json.JSONDecodeError:
+        # LLM sometimes outputs multiple JSON objects — extract only the first
+        import re as _re
+        first_obj = _re.search(r'\{.*?\}(?=\s*\{|\s*$)', raw, _re.DOTALL)
+        if first_obj:
+            try:
+                result = json.loads(first_obj.group())
+            except json.JSONDecodeError as e2:
+                raise ValueError(f"LLM returned non-JSON:\n{raw}\nError: {e2}")
+        else:
+            raise ValueError(f"LLM returned non-JSON:\n{raw}")
 
     if "error" in result:
         raise ValueError(f"LLM could not parse request: {result['error']}")
 
     change_type = result.get("type", "")
+    NO_EMPLOYEE_TYPES = {
+        "set_staffing_override", "set_day_closed", "set_shift_disabled",
+        "set_date_staffing", "schedule_query",
+    }
     if change_type == "direct_swap":
         result["employee_name_1"] = resolve_employee(result, data, current_schedule, "_1")
         result["employee_name_2"] = resolve_employee(result, data, current_schedule, "_2")
+    elif change_type in NO_EMPLOYEE_TYPES:
+        pass  # these types don't reference an employee
     else:
         result["employee_name"] = resolve_employee(result, data, current_schedule)
 
@@ -948,7 +992,8 @@ def _validate_change(change, staff_names):
     valid_types = {"unavailable","direct_swap","avoid_back_to_back",
                    "back_to_back_preference","avoid_shift","shift_preference",
                    "remove_from_shift","schedule_query",
-                   "set_staffing_override","set_day_closed","set_shift_disabled"}
+                   "set_staffing_override","set_day_closed","set_shift_disabled",
+                   "set_date_staffing"}
     t = change.get("type", "")
     if t not in valid_types:
         raise ValueError(f"Unknown change type: '{t}'")
@@ -968,7 +1013,7 @@ def _validate_change(change, staff_names):
 
     if t == "remove_from_shift":
         ck_name("employee_name"); ck_day("day")
-    elif t in {"set_staffing_override","set_day_closed","set_shift_disabled"}:
+    elif t in {"set_staffing_override","set_day_closed","set_shift_disabled","set_date_staffing"}:
         pass  # validated downstream; no employee name required
     elif t == "unavailable":
         ck_name("employee_name"); ck_day("day")

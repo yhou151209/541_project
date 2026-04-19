@@ -28,7 +28,7 @@ Solver key conventions (with_llm.py):
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +86,38 @@ def _day_is_closed(
     if day_hours is None:
         return False
     return bool(day_hours.get("closed", False))
+
+
+def _get_date_staffing_override(
+    ui_data: Dict[str, Any],
+    day_index: int,
+    shift_name: str,
+    role: str,
+    week_offset: int = 0,
+) -> Optional[int]:
+    """Return a date-specific staffing count override, or None if not set."""
+    import datetime
+    special = ui_data.get("specialDates") or {}
+    if not special:
+        return None
+    try:
+        today  = datetime.date.today()
+        monday = today - datetime.timedelta(days=today.weekday()) + datetime.timedelta(weeks=week_offset)
+        actual = monday + datetime.timedelta(days=day_index)
+        dk     = actual.strftime("%Y-%m-%d")
+        if dk in special:
+            overrides = special[dk].get("staffingOverrides") or {}
+            key = shift_name + "|" + role
+            if key in overrides:
+                return int(overrides[key])
+            # Also try case-insensitive
+            for k, v in overrides.items():
+                kshift, krole = k.split("|", 1)
+                if kshift.lower() == shift_name.lower() and krole.lower() == role.lower():
+                    return int(v)
+    except Exception:
+        pass
+    return None
 
 
 def _is_shift_disabled(
@@ -222,8 +254,14 @@ def ui_to_solver(
             if _is_shift_disabled(ui_data, di, sh["name"], week_offset):
                 continue
             for role in roles:
-                staffing_key   = f"{sh['id']}_{role}_{suffix}"
-                required_count = int(staffing.get(staffing_key, 0))
+                # Priority: date-specific override > per-day key > weekday/weekend global
+                date_override = _get_date_staffing_override(ui_data, di, sh["name"], role, week_offset)
+                if date_override is not None:
+                    required_count = date_override
+                else:
+                    per_day_key  = f"{sh['id']}_{role}_d{di}"
+                    global_key   = f"{sh['id']}_{role}_{suffix}"
+                    required_count = int(staffing.get(per_day_key, staffing.get(global_key, 0)))
                 if required_count > 0:
                     shift_requirements.append({
                         "day":            day_name,

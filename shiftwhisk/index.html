@@ -1666,6 +1666,7 @@ function renderStaffingPage(){
             placeholder="${fallback}"
             value="${hasOv?D.staffing[pk]:''}"
             title="${hasOv?'Override: '+D.staffing[pk]:'Default: '+fallback}"
+            data-stf-key="${pk}"
             onchange="setPerDayStaffing('${sh.id}','${encodeURIComponent(role)}',${di},this.value)">
         </td>`;
       }
@@ -1674,12 +1675,13 @@ function renderStaffingPage(){
     html+='</tbody></table></div></div></div>';
   });
   c.innerHTML=html;
+  perDayOpen.forEach(sid=>{const el=document.getElementById('perday-'+sid);const btn=el&&el.previousElementSibling;if(el){el.style.display='';if(btn)btn.textContent='▾ Per-day overrides';}});
 }
 function togglePerDay(shiftId,btn){
   const el=document.getElementById('perday-'+shiftId);
   const open=el.style.display!=='none';
-  el.style.display=open?'none':'';
-  btn.textContent=(open?'▸':'▾')+' Per-day overrides';
+  if(open){perDayOpen.delete(shiftId);el.style.display='none';btn.textContent='▸ Per-day overrides';}
+  else{perDayOpen.add(shiftId);el.style.display='';btn.textContent='▾ Per-day overrides';}
 }
 function setPerDayStaffing(shiftId,roleEnc,di,val){
   const role=decodeURIComponent(roleEnc);
@@ -1687,7 +1689,10 @@ function setPerDayStaffing(shiftId,roleEnc,di,val){
   const trimmed=val.trim();
   if(trimmed===''){delete D.staffing[key]}
   else{D.staffing[key]=parseInt(trimmed)||0}
-  save();renderSchedule();renderStaffingPage();
+  save();
+  renderSchedule();
+  const inp=document.querySelector('[data-stf-key="'+key+'"]');
+  if(inp){inp.style.borderColor=D.staffing[key]!==undefined?'#7c5cff':'';inp.style.background=D.staffing[key]!==undefined?'#f7f5ff':'';}
 }
 
 /* Shifts page */
@@ -1772,12 +1777,26 @@ function renderHoursPage(){
         <select id="sp-type-sel" class="fi" style="width:180px" onchange="renderSpTypeOptions()">
           <option value="closed">Closed all day</option>
           <option value="shifts">Disable specific shifts</option>
+          <option value="staffing">Boost / reduce staffing</option>
         </select>
       </div>
       <div id="sp-shifts-picker" style="display:none">
         <div style="font-size:11px;color:#9aa1af;font-weight:700;margin-bottom:4px">Shifts to disable</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap" id="sp-shift-chks">
           ${D.shifts.map(sh=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" value="${sh.name}"> ${sh.name}</label>`).join('')}
+        </div>
+      </div>
+      <div id="sp-staffing-picker" style="display:none">
+        <div style="font-size:11px;color:#9aa1af;font-weight:700;margin-bottom:4px">Staffing override</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="sp-stf-shift" class="fi" style="width:120px">
+            ${D.shifts.map(sh=>`<option value="${sh.name}">${sh.name}</option>`).join('')}
+          </select>
+          <select id="sp-stf-role" class="fi" style="width:120px">
+            ${D.roles.map(r=>`<option value="${r}">${r}</option>`).join('')}
+          </select>
+          <input type="number" id="sp-stf-count" class="num-inp" min="0" max="30" value="1" style="width:56px">
+          <span style="font-size:12px;color:#9aa1af">people</span>
         </div>
       </div>
       <button class="btn btn-primary btn-sm" style="padding:8px 14px" onclick="addSpecialDate()">+ Add Override</button>
@@ -1788,6 +1807,8 @@ function renderHoursPage(){
 function renderSpTypeOptions(){
   const t=document.getElementById('sp-type-sel').value;
   document.getElementById('sp-shifts-picker').style.display=t==='shifts'?'':'none';
+  const sp=document.getElementById('sp-staffing-picker');
+  if(sp)sp.style.display=t==='staffing'?'':'none';
 }
 function toggleShiftDay(di,shiftName){
   if(!D.restaurant.hours[di])D.restaurant.hours[di]={open:'09:00',close:'22:00',closed:false,disabledShifts:[]};
@@ -1804,11 +1825,19 @@ function addSpecialDate(){
   const type=document.getElementById('sp-type-sel').value;
   if(!D.specialDates)D.specialDates={};
   if(type==='closed'){
-    D.specialDates[dk]={closed:true,disabledShifts:[]};
-  } else {
+    D.specialDates[dk]={closed:true,disabledShifts:[],staffingOverrides:{}};
+  } else if(type==='shifts'){
     const chk=Array.from(document.querySelectorAll('#sp-shift-chks input:checked')).map(el=>el.value);
     if(!chk.length){alert('Please select at least one shift to disable.');return}
-    D.specialDates[dk]={closed:false,disabledShifts:chk};
+    D.specialDates[dk]={closed:false,disabledShifts:chk,staffingOverrides:{}};
+  } else if(type==='staffing'){
+    const shift=document.getElementById('sp-stf-shift').value;
+    const role=document.getElementById('sp-stf-role').value;
+    const count=parseInt(document.getElementById('sp-stf-count').value)||0;
+    const existing=D.specialDates[dk]||{closed:false,disabledShifts:[],staffingOverrides:{}};
+    if(!existing.staffingOverrides)existing.staffingOverrides={};
+    existing.staffingOverrides[shift+'|'+role]=count;
+    D.specialDates[dk]=existing;
   }
   save();renderSpecialDatesList();renderSchedule();
   document.getElementById('sp-date-inp').value='';
@@ -1823,7 +1852,12 @@ function renderSpecialDatesList(){
     list.innerHTML='<div style="font-size:12px;color:#aab0bf;padding:4px 0 10px">No special dates added yet.</div>';return;
   }
   list.innerHTML=entries.map(([dk,cfg])=>{
-    const lbl=cfg.closed?'Closed all day':'Shifts off: '+(cfg.disabledShifts||[]).join(', ');
+    let lbl;
+    if(cfg.closed) lbl='Closed all day';
+    else if(cfg.disabledShifts&&cfg.disabledShifts.length) lbl='Shifts off: '+cfg.disabledShifts.join(', ');
+    else if(cfg.staffingOverrides&&Object.keys(cfg.staffingOverrides).length){
+      lbl='Staffing: '+Object.entries(cfg.staffingOverrides).map(([k,v])=>k.replace('|',' ')+': '+v).join(', ');
+    } else lbl='Override active';
     const icon=cfg.closed?'🔴':'🟡';
     const [y,m,d]=dk.split('-');
     const disp=parseInt(m)+'/'+parseInt(d)+'/'+y;
@@ -1840,7 +1874,8 @@ function renderSpecialDatesList(){
 // In-memory cache of the last solver state returned by the backend.
 // Also persisted to D.solverCache in localStorage so preferences survive refresh.
 let solverState = { solverData: null, solverSchedule: null };
-let undoStack = []; // stores {schedule, solverData, solverSchedule} for undo
+let undoStack = [];
+let perDayOpen = new Set(); // stores {schedule, solverData, solverSchedule} for undo
 
 // Load persisted solver state from localStorage on boot (called in enterApp)
 function loadSolverCache() {
@@ -2188,7 +2223,18 @@ function tryLocalScheduleQuery(msg){
 
   const DAYS_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-  function findDay(str){return DAYS_FULL.find(d=>str.toLowerCase().includes(d.toLowerCase()))||null}
+  function findDay(str){
+    const lower=str.toLowerCase();
+    const today=new Date();
+    const todayDi=(today.getDay()||7)-1;
+    if(lower.includes('today'))    return DAYS_FULL[todayDi];
+    if(lower.includes('tomorrow')) return DAYS_FULL[(todayDi+1)%7];
+    if(lower.includes('yesterday'))return DAYS_FULL[(todayDi+6)%7];
+    return DAYS_FULL.find(d=>lower.includes(d.toLowerCase()))||null;
+  }
+  function findDayIndex(str){
+    const d=findDay(str); return d?DAYS_FULL.indexOf(d):-1;
+  }
   function findShift(str){
     const sh=D.shifts.find(s=>str.toLowerCase().includes(s.name.toLowerCase()));
     return sh?sh.name:null;
@@ -2237,8 +2283,8 @@ function tryLocalScheduleQuery(msg){
     const rest=(im[2]||'');
     const emp=D.employees.find(e=>e.name.toLowerCase().startsWith(empName.toLowerCase()));
     if(emp){
-      const day=findDay(rest);
-      const di=day?DAYS_FULL.indexOf(day):-1;
+      const di=findDayIndex(rest);
+      const day=di>=0?DAYS_FULL[di]:null;
       const results=[];
       for(let d=0;d<7;d++){
         if(di>=0&&d!==di)continue;
