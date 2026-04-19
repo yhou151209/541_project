@@ -130,7 +130,7 @@ Open `http://localhost:3000`
 - Manager picks a date + type: "Closed all day" or "Disable specific shifts"
 - Stored in `D.specialDates["YYYY-MM-DD"]` — takes priority over weekly schedule
 - Closed special dates show as "Closed" in schedule; disabled-shift dates show "Closed" on affected cells
-- ★ marker appears in schedule column header when a special date override is active
+- marker appears in schedule column header when a special date override is active
 - Individual overrides can be removed from the list
 - `adapter.py` checks `specialDates` before falling back to `restaurant.hours`
 
