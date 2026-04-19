@@ -127,20 +127,21 @@ Open `http://localhost:3000`
 
 ### Special Date Overrides
 - New section at the bottom of Operating Hours: "Special Date Overrides"
-- Manager picks a date + type: "Closed all day" or "Disable specific shifts"
+- Manager picks a date + type: "Closed all day", "Disable specific shifts", or "Boost / reduce staffing"
 - Stored in `D.specialDates["YYYY-MM-DD"]` — takes priority over weekly schedule
 - Closed special dates show as "Closed" in schedule; disabled-shift dates show "Closed" on affected cells
-- marker appears in schedule column header when a special date override is active
+- ★ marker appears in schedule column header when a special date override is active
 - Individual overrides can be removed from the list
 - `adapter.py` checks `specialDates` before falling back to `restaurant.hours`
 
-### New LLM Change Types (9 total, up from 4)
+### New LLM Change Types (10 total, up from 4)
 - `remove_from_shift` — "Remove Alice from Tuesday morning" — marks unavailable for that slot, re-solves
 - `schedule_query` — "Who's working Saturday evening?" — answered client-side instantly, no solver call
 - `set_staffing_override` — "Sunday Morning only needs 1 Server" — writes per-day staffing key, re-runs Auto Schedule
 - `set_day_closed` — "Close Christmas day" / "Next Wednesday is closed" — writes to `specialDates`, re-runs solver
 - `set_shift_disabled` — "Don't open Morning on Sundays" — writes to `hours[di].disabledShifts`, re-runs solver
-- Today's date injected into every chat message so LLM can resolve relative dates ("next Wednesday")
+- `set_date_staffing` — "New Year's Eve needs 5 Servers for Evening" — writes to `specialDates[date].staffingOverrides`, re-runs solver
+- Today's date + explicit next-weekday dates injected into every chat message so LLM never miscalculates relative dates
 - `app.py` returns `uiDataPatch` for UI-mutation types; frontend applies patch and saves to localStorage
 
 ### Undo Auto Schedule
@@ -161,54 +162,64 @@ Open `http://localhost:3000`
 - Each shift card has a "▸ Per-day overrides" expandable section
 - Shows a Role × Mon–Sun table; empty cell = use global weekday/weekend default
 - Filled cells shown with purple border to indicate override is active
+- Panel stays open after editing a cell (no full page re-render)
 - `neededForRole()` checks per-day key first, falls back to `wd`/`we`
-- Changes save immediately and re-render the schedule
 
 ---
 
-## Architectural Decision Log
+## Session 4
 
-### Staffing model: weekday/weekend → per-day (planned)
-**Current state:** Two-tier system — global `_wd`/`_we` keys with optional `_d0`–`_d6` per-day overrides. The two systems co-existing has caused bugs (solver not picking up per-day overrides correctly, priority conflicts in `adapter.py`).
+### Bug Fixes
 
-**Planned change:** Collapse to a single `_d0`–`_d6` key per (shift, role, day). No more `_wd`/`_we`.
+**direct_swap "Forced assignment not in model"**
+- Root cause: shift and role names in forced assignments were lowercased (`"evening"`, `"server"`) but solver variables use the original casing from `shift_requirements` (`"Evening"`, `"Server"`)
+- Fix: added `exact_shift()` and `exact_role()` helpers in `update_schedule` that look up the canonical casing from `shift_requirements` before constructing forced assignments
 
-**Migration plan:**
-- `normalizeLegacyData` in `index.html` expands existing `_wd`/`_we` keys into 7 day keys on first load (weekday value → `_d1`–`_d5`, weekend value → `_d0`, `_d6`)
-- Setup Step 3 keeps weekday/weekend UI as a **quick-fill shortcut** that writes all 7 day keys at once
-- `adapter.py` `shift_requirements` loop reads only `_d0`–`_d6`, removing the suffix branch entirely
-- `neededForRole()` in `index.html` reads only `_d0`–`_d6`
-- All chat commands (`set_staffing_override`) write directly to the day key
+**"Is Ian working tomorrow?" returns full week**
+- Root cause: `findDay()` in `tryLocalScheduleQuery` only matched explicit day names, not relative terms; result was no day filter applied
+- Fix: `findDay()` now resolves `today`, `tomorrow`, `yesterday` using current weekday; new `findDayIndex()` helper used in the isWorking branch to correctly filter results to one day
 
-**Why:** Simpler mental model for managers, eliminates the override priority bug, cleaner adapter code.
+**"Prefer Brian for weekend evening" returns two JSON objects**
+- Root cause: LLM interpreted "weekend" as Saturday + Sunday and returned two separate JSON objects, causing `json.loads()` to fail with "Extra data"
+- Fix 1: prompt now explicitly instructs LLM to return exactly ONE JSON object and omit `day` for weekend preferences
+- Fix 2: added fallback parser in `with_llm.py` — if `json.loads()` fails, extract the first valid JSON object with regex and continue
+
+**"Next Monday is closed" marks wrong date**
+- Root cause: LLM was given only today's date and had to compute "next Monday" itself, which it got wrong when today was Saturday
+- Fix: `app.py` now pre-computes the exact date of every next weekday and injects them all into the message context, e.g. `next Monday=2026-04-20, next Tuesday=2026-04-21...` — LLM reads the answer directly instead of calculating
+
+**`set_staffing_override` / `set_day_closed` / `set_shift_disabled` / `schedule_query` failing with "Could not identify employee"**
+- Root cause: `parse_user_request` called `resolve_employee()` on all change types, including ones that don't reference an employee
+- Fix: added `NO_EMPLOYEE_TYPES` set; these types now skip employee resolution entirely
+
+**Per-day staffing override not picked up by solver**
+- Root cause: `adapter.py` `shift_requirements` loop only read `_wd`/`_we` keys, ignoring `_dN` per-day overrides
+- Fix: loop now checks per-day key first (`_d0`–`_d6`), falls back to global key (`_wd`/`_we`)
 
 ---
 
 # Known Limitations
 
 ## Scheduling
-- **No event-based staffing boost** — can't temporarily increase headcount for a specific date (e.g. New Year's Eve needs 5 Servers instead of 3); workaround is to manually edit Staffing Rules
 - **Solver timeout 15s** — large rosters may return a suboptimal schedule
-- **Per-day staffing override bug** — solver may not pick up per-day overrides correctly until the weekday/weekend → per-day migration is complete (see Architectural Decision Log)
 
 ## LLM
 - **No conversation memory** — each chat message is independent; context doesn't carry between messages
 - **Groq rate limits** — free tier has request limits; no retry logic
+- **Social messages trigger schedule_query** — sending "thank you" or similar is parsed as a query and returns the full week schedule
 
 ## Data
 - **localStorage only** — clearing browser data or switching computers loses everything
-- **No PDF export** — CSV only; no print-friendly view
 
 ---
 
 # Backlog (next to build)
 
 ## High Priority
-- **Staffing model migration** — collapse `_wd`/`_we` + `_dN` override into single `_d0`–`_d6` system (see Architectural Decision Log)
-- **Multi-device sync** — replace localStorage with a real database (Firebase recommended)
+- **Multi-device sync** — replace localStorage with a real database 
 
 ## Medium Priority
-- **Event staffing boost** — chat command to temporarily increase headcount on a specific date
+- **Social message filter** — detect non-scheduling messages and reply with a friendly nudge instead of querying the schedule
 - **Employee self-service** — employees view their own schedule and set availability
 - **Notifications** — notify employees when schedule is published or changed
 
