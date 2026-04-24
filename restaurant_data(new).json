@@ -1,0 +1,218 @@
+{
+    "staff": [
+        {
+            "id": "64489C85",
+            "name": "Alice",
+            "skills": [],
+            "max_hours": 25,
+            "seniority": 0
+        },
+        {
+            "id": "4D236810",
+            "name": "Brian",
+            "skills": [
+                "Cashier"
+            ],
+            "max_hours": 40,
+            "seniority": 2
+        },
+        {
+            "id": "24B1F774",
+            "name": "Cindy",
+            "skills": [],
+            "max_hours": 25,
+            "seniority": 0
+        },
+        {
+            "id": "26203139",
+            "name": "Daniel",
+            "skills": [],
+            "max_hours": 25,
+            "seniority": 0
+        },
+        {
+            "id": "77DCD555",
+            "name": "Eric",
+            "skills": [
+                "Cashier"
+            ],
+            "max_hours": 40,
+            "seniority": 2
+        },
+        {
+            "id": "5E48CACD",
+            "name": "Fiona",
+            "skills": [],
+            "max_hours": 25,
+            "seniority": 0
+        },
+        {
+            "id": "578AD8E1",
+            "name": "George",
+            "skills": [],
+            "max_hours": 40,
+            "seniority": 2
+        },
+        {
+            "id": "02741B00",
+            "name": "Hannah",
+            "skills": [
+                "Server"
+            ],
+            "max_hours": 25,
+            "seniority": 0
+        },
+        {
+            "id": "245A58A5",
+            "name": "Ian",
+            "skills": [
+                "Cashier"
+            ],
+            "max_hours": 40,
+            "seniority": 2
+        },
+        {
+            "id": "2344521E",
+            "name": "Julia",
+            "skills": [],
+            "max_hours": 25,
+            "seniority": 0
+        }
+    ],
+    "shift_requirements": [
+        {
+            "day": "Monday",
+            "shift": "morning",
+            "role": "Server",
+            "required_count": 1
+        },
+        {
+            "day": "Monday",
+            "shift": "evening",
+            "role": "Cashier",
+            "required_count": 1
+        }
+    ],
+    "availability": [
+        {
+            "employee_id": "64489C85",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "4D236810",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "24B1F774",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "26203139",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "77DCD555",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "5E48CACD",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "578AD8E1",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "02741B00",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "245A58A5",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "2344521E",
+            "day": "Monday",
+            "shift": "morning",
+            "available": true
+        },
+        {
+            "employee_id": "64489C85",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "4D236810",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "24B1F774",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "26203139",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "77DCD555",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "5E48CACD",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "578AD8E1",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "02741B00",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "245A58A5",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        },
+        {
+            "employee_id": "2344521E",
+            "day": "Monday",
+            "shift": "evening",
+            "available": true
+        }
+    ]
+}

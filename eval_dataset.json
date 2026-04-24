@@ -1,0 +1,165 @@
+[
+    {
+        "test_id": "001",
+        "category": "happy_path_with_typos",
+        "user_input": "Hanna cannot make it this Sunay evening",
+        "expected_parser_output": {
+            "type": "unavailable",
+            "employee_name": "Hannah",
+            "day": "Sunday",
+            "shift": "evening"
+        }
+    },
+    {
+        "test_id": "002",
+        "category": "core_direct_swap",
+        "user_input": "Can Cindy swap her Friday evening shift with Julia's Saturday morning?",
+        "expected_parser_output": {
+            "type": "direct_swap",
+            "employee_name_1": "Cindy",
+            "day_1": "Friday",
+            "shift_1": "evening",
+            "employee_name_2": "Julia",
+            "day_2": "Saturday",
+            "shift_2": "morning"
+        }
+    },
+    {
+        "test_id": "003",
+        "category": "core_avoid_shift_day",
+        "user_input": "Please don't schedule George on Sundays.",
+        "expected_parser_output": {
+            "type": "avoid_shift",
+            "employee_name": "George",
+            "day": "Sunday",
+            "penalty": 3
+        }
+    },
+    {
+        "test_id": "004",
+        "category": "core_avoid_shift_time",
+        "user_input": "Avoid giving Daniel evening shifts.",
+        "expected_parser_output": {
+          "type": "avoid_shift",
+          "employee_name": "Daniel",
+          "shift": "evening",
+          "penalty": 3
+}
+    },
+    {
+        "test_id": "005",
+        "category": "core_avoid_back_to_back",
+        "user_input": "Eric is exhausted from working double shifts, please stop doing that to him.",
+        "expected_parser_output": {
+            "type": "avoid_back_to_back",
+            "employee_name": "Eric",
+            "penalty": 5
+        }
+    },
+    {
+        "test_id": "006",
+        "category": "shift_preference_negative",
+        "user_input": "I prefer assigning Brian to Saturday evenings.",
+        "expected_parser_output": {
+            "type": "shift_preference",
+            "employee_name": "Brian",
+            "day": "Saturday",
+            "shift": "evening",
+            "penalty": -4
+        }
+    },
+    {
+        "test_id": "007",
+        "category": "new_remove_from_shift",
+        "user_input": "Remove Alice from Tuesday morning.",
+        "expected_parser_output": {
+            "type": "remove_from_shift",
+            "employee_name": "Alice",
+            "day": "Tuesday",
+            "shift": "morning"
+        }
+    },
+    {
+        "test_id": "008",
+        "category": "new_schedule_query_shift",
+        "user_input": "Who is working on Friday morning?",
+        "expected_parser_output": {
+            "type": "schedule_query",
+            "day": "Friday",
+            "shift": "morning",
+            "employee_name": null
+        }
+    },
+    {
+        "test_id": "009",
+        "category": "new_schedule_query_person",
+        "user_input": "What shifts does Fiona have?",
+        "expected_parser_output": {
+            "type": "schedule_query",
+            "day": null,
+            "shift": null,
+            "employee_name": "Fiona"
+        }
+    },
+    {
+        "test_id": "010",
+        "category": "new_set_staffing_override",
+        "user_input": "Sunday Morning needs 1 Server.",
+        "expected_parser_output": {
+            "type": "set_staffing_override",
+            "day": "Sunday",
+            "shift": "morning",
+            "role": "Server",
+            "count": 1
+        }
+    },
+    {
+        "test_id": "011",
+        "category": "new_set_day_closed",
+        "user_input": "Close 2026-01-01 for New Years.",
+        "expected_parser_output": {
+            "type": "set_day_closed",
+            "date": "2026-01-01",
+            "closed": true
+        }
+    },
+    {
+        "test_id": "012",
+        "category": "new_set_shift_disabled",
+        "user_input": "Don't open Morning on Sundays anymore.",
+        "expected_parser_output": {
+            "type": "set_shift_disabled",
+            "day_index": 6,
+            "shift": "morning",
+            "disabled": true
+        }
+    },
+    {
+        "test_id": "013",
+        "category": "new_set_date_staffing",
+        "user_input": "For 2025-12-31, we need 5 Servers in the Evening.",
+        "expected_parser_output": {
+            "type": "set_date_staffing",
+            "date": "2025-12-31",
+            "shift": "evening",
+            "role": "Server",
+            "count": 5
+        }
+    },
+    {
+        "test_id": "014",
+        "category": "invalid_employee",
+        "user_input": "Please remove David from the Saturday morning schedule.",
+        "expected_parser_output": {
+            "error": "Employee 'David' not found."
+        }
+    },
+    {
+        "test_id": "015",
+        "category": "incomplete_missing_swap_target",
+        "user_input": "Swap Ian's Monday morning with Brian.",
+        "expected_parser_output": {
+            "error": "Missing target shift for Brian"
+        }
+    }
+]
