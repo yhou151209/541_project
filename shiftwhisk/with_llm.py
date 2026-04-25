@@ -764,8 +764,9 @@ IDENTIFYING AN EMPLOYEE — three options:
    — only when user identified someone by their current slot
 
 SHIFT RULES:
-- Named shift → use closest match from VALID SHIFT NAMES
-- Day mentioned but no shift → set "shift":"all" (unavailable whole day)
+- Named shift -> use closest match from VALID SHIFT NAMES
+- Day mentioned but no shift -> set "shift":"all" (unavailable whole day)
+- CRITICAL SWAP RULE: If a user asks to swap but does not explicitly state the target shift for the second employee, DO NOT GUESS. You must stop and return exactly: {{"error":"Missing target shift for [Name]"}}
 
 OUTPUT FORMAT — return ONLY valid JSON, no markdown, no explanation.
 
@@ -780,11 +781,13 @@ Supported types:
 3. avoid_back_to_back  (penalty 1–10)
    {{"type":"avoid_back_to_back","employee_name":"NAME","penalty":5}}
 
-4. shift_preference  (penalty -10 to 10; omit day or shift if not specified)
-   positive=avoid, negative=prefer
-   {{"type":"shift_preference","employee_name":"NAME","day":"DAY","shift":"SHIFT","penalty":3}}
-   IMPORTANT: Always return exactly ONE JSON object. If "weekend" is mentioned, omit "day" entirely — do NOT return two objects for Saturday and Sunday separately.
+4. shift_preference  (negative penalty to prefer working; omit day/shift if not specified)
+   {{"type":"shift_preference","employee_name":"NAME","day":"DAY","shift":"SHIFT","penalty":-4}}
 
+5. avoid_shift  (positive penalty to avoid working; omit day/shift if not specified)
+   {{"type":"avoid_shift","employee_name":"NAME","day":"DAY","shift":"SHIFT","penalty":3}}
+
+   
 EXAMPLES:
 User: "Julia cannot work on Monday"
 JSON: {{"type":"unavailable","employee_name":"Julia","day":"Monday","shift":"all"}}
@@ -801,8 +804,14 @@ JSON: {{"type":"unavailable","employee_name":"Iann","day":"Sunday","shift":"even
 User: "swap Cindy on Monday morning with Ian on Tuesday evening"
 JSON: {{"type":"direct_swap","employee_name_1":"Cindy","day_1":"Monday","shift_1":"morning","employee_name_2":"Ian","day_2":"Tuesday","shift_2":"evening"}}
 
+User: "Swap Ian's Monday morning with Brian."
+JSON: {{"error":"Missing target shift for Brian"}}
+
 User: "Avoid giving Eric back-to-back shifts"
 JSON: {{"type":"avoid_back_to_back","employee_name":"Eric","penalty":5}}
+
+User: "Please don't schedule George on Sundays."
+JSON: {{"type":"avoid_shift","employee_name":"George","day":"Sunday","penalty":3}}
 
 User: "Try not to assign Alice to morning shifts"
 JSON: {{"type":"shift_preference","employee_name":"Alice","shift":"morning","penalty":3}}
@@ -970,6 +979,11 @@ def parse_user_request(user_input, data, current_schedule):
 
     if "error" in result:
         raise ValueError(f"LLM could not parse request: {result['error']}")
+    
+    # --- FIX: Standardize shift casing to lowercase ---
+    if "shift" in result and isinstance(result["shift"], str):
+        result["shift"] = result["shift"].lower()
+    # --------------------------------------------------
 
     change_type = result.get("type", "")
     NO_EMPLOYEE_TYPES = {
