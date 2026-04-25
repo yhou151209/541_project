@@ -708,7 +708,12 @@ def generate_explanation(data_before, old_schedule, new_schedule, change):
             if hs(old_schedule, employee_name, day, "m") and hs(old_schedule, employee_name, day, "e"): before += 1
             if hs(new_schedule, employee_name, day, "m") and hs(new_schedule, employee_name, day, "e"): after  += 1
         lines.append(f"Preference added: avoid back-to-back shifts for {employee_name}.")
-        lines.append(f"Same-day double shifts changed from {before} to {after}.")
+        if before == 0 and after == 0:
+            lines.append("They didn't have any back-to-back shifts scheduled anyway, so no changes were needed.")
+        elif before == after:
+            lines.append(f"We tried to reduce these shifts, but couldn't completely eliminate them ({after} remaining) without breaking staffing rules.")
+        else:
+            lines.append(f"Successfully reduced same-day double shifts from {before} to {after}.")
 
     elif change_type in {"avoid_shift","shift_preference"}:
         employee_name = change["employee_name"]
@@ -725,7 +730,12 @@ def generate_explanation(data_before, old_schedule, new_schedule, change):
         before = sum(1 for r in old_schedule if match_target(r))
         after  = sum(1 for r in new_schedule if match_target(r))
         lines.append(f"Preference added: {direction} assigning {employee_name} to {scope}.")
-        lines.append(f"Matching assignments changed from {before} to {after}.")
+        if before == 0 and after == 0:
+             lines.append("They weren't scheduled for this shift anyway, so no changes were needed.")
+        elif before == after and penalty > 0:
+             lines.append("We tried to remove them from this shift, but couldn't find a valid replacement without leaving the shift short-staffed.")
+        else:
+             lines.append(f"Matching assignments updated from {before} to {after}.")
     else:
         lines.append("The schedule was updated and re-optimised.")
 
